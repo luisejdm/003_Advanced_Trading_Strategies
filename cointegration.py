@@ -3,6 +3,7 @@ import pandas as pd
 from statsmodels.tsa.stattools import adfuller
 import statsmodels.api as sm
 
+
 def check_price_stationarity(prices: pd.Series, alpha: float = 0.05) -> bool:
     """
     Check if the price series is stationary using the Augmented Dickey-Fuller test.
@@ -90,7 +91,7 @@ def get_best_cointegrated_pair(data: pd.DataFrame, sectors: dict, alpha: float =
         pairs = check_pair_cointegration(data, tickers, alpha)
         coint_results[sector_name] = pairs
     total_pairs = sum(len(pairs) for pairs in coint_results.values())
-    print(f'\nTotal cointegrated pairs found: {total_pairs}')
+    print(f'\nTotal cointegrated pairs found: {total_pairs}. (Confidence level: {1 - alpha:.2%})')
 
     # Initialize variables to track the best pair
     best_pair = None
@@ -106,3 +107,12 @@ def get_best_cointegrated_pair(data: pd.DataFrame, sectors: dict, alpha: float =
                 best_sector = sector
 
     return coint_results, best_pair, best_pvalue, best_sector
+
+
+def get_best_pair() -> tuple:
+    """
+    Get the best cointegrated pair.
+    Returns:
+        tuple: The best cointegrated pair of stock tickers.
+    """
+    return 'MSFT', 'INTU'
