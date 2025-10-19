@@ -54,7 +54,7 @@ def plot_all_pairs(train: pd.DataFrame, coint_results: dict, estandarize_fn) -> 
             plt.show()
 
 
-def plot_w(w_pred: list, index: np.ndarray) -> None:
+def plot_w(w_pred: list, index: pd.Index) -> None:
     """
     Plot the predicted spread values.
     Args:

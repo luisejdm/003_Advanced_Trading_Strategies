@@ -9,7 +9,6 @@ from backtest import run_backtest
 from config import BacktestConfig
 
 
-
 def main():
     # Load and preprocess data
     data = pd.read_csv('stocks.csv')
@@ -44,7 +43,8 @@ def main():
         invest_fraction=0.8,
         z_threshold=1.75,
         exec_lag=1,
-        window=252
+        window=252,
+        z_close_threshold=0.1
     )
     run_backtest(data, config, 'MSFT', 'AAPL', 0.001, 0.001, 5)
 
