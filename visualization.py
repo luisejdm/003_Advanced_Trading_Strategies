@@ -84,19 +84,70 @@ def plot_estimations(index: pd.Index, w_pred: list, ) -> None:
     plt.show()
 
 
-def plot_portfolio_value(dates: pd.Index, portfolio_values: list) -> None:
+def plot_portfolio_value(dates: pd.Index, portfolio_values: list, signals: np.ndarray) -> None:
     """
     Plot the portfolio value over time.
     Args:
         dates (pd.Index): Index of dates.
         portfolio_values (list): List of portfolio values corresponding to the dates.
+        signals (np.ndarray): Array of trading signals corresponding to the dates.
     """
-    plt.figure()
-    plt.plot(dates, portfolio_values, label='Portfolio Value', color='darkslateblue')
-    plt.title('Portfolio Value Over Time')
-    plt.xlabel('Date')
-    plt.ylabel('Portfolio Value')
-    plt.legend()
-    plt.grid(True)
+    # Subplots con proporción de alturas: el portafolio más grande
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, sharex=True, figsize=(14, 10),
+        gridspec_kw={'height_ratios': [3, 1]}
+    )
+
+    ax1.plot(dates, portfolio_values, label='Portfolio Value', color='darkslateblue')
+    ax1.set_title('Portfolio Value Over Time')
+    ax1.set_ylabel('Portfolio Value')
+    ax1.legend(loc='upper left')
+    ax1.grid(True)
+
+    ax2.plot(dates, signals, label='Trading Signal', color='darkslateblue', drawstyle='steps-post')
+    ax2.set_title('Trading Signals Over Time')
+    ax2.set_xlabel('Date')
+    ax2.set_ylabel('Signal')
+    ax2.set_ylim(-2, 2)
+    ax2.legend(loc='upper left')
+    ax2.grid(True)
+
+    plt.tight_layout()
     plt.show()
 
+
+def plot_spread_and_signal(dates: pd.Index, spread: np.ndarray, signals: np.ndarray, z_threshold: float) -> None:
+    """
+    Plot the spread and trading signals over time in subplots.
+    Args:
+        dates (pd.Index): Index of dates.
+        spread (np.ndarray): Array of spread values corresponding to the dates.
+        signals (np.ndarray): Array of trading signals corresponding to the dates.
+        z_threshold (np.ndarray): Array of z-threshold values for reference.
+    """
+    # El subplot superior será 3 veces más alto que el inferior
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, sharex=True, figsize=(14, 10),
+        gridspec_kw={'height_ratios': [3, 1]}
+    )
+    ax1.plot(dates, spread, label='Spread', color='darkslateblue')
+    ax1.axhline(y=z_threshold, color='firebrick', linestyle='--', linewidth=2.5, label=f'Z-Score Thresholds')
+    ax1.axhline(y=-z_threshold, color='firebrick', linestyle='--', linewidth=2.5)
+    ax1.text(dates[0], z_threshold + 0.1, f'+{z_threshold}', color='firebrick', fontsize=14, va='bottom', fontweight='bold')
+    ax1.text(dates[0], -z_threshold - 0.1, f'-{z_threshold}', color='firebrick', fontsize=14, va='top', fontweight='bold')
+    ax1.set_title('Spread Over Time')
+    ax1.set_ylabel('Spread')
+    ax1.set_ylim(spread.min()-0.5, spread.max()+0.5)
+    ax1.legend(loc='upper right')
+    ax1.grid(True)
+
+    ax2.plot(dates, signals, label='Trading Signal', color='darkslateblue', drawstyle='steps-post')
+    ax2.set_title('Trading Signals Over Time')
+    ax2.set_xlabel('Date')
+    ax2.set_ylabel('Signal')
+    ax2.set_ylim(-2, 2)
+    ax2.legend()
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()

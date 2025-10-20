@@ -35,21 +35,20 @@ def run_backtest(
         p: float, q: float, r: float
 ):
     """
-    Backtest a trading strategy on historical data.
+    Run a backtest of the pairs trading strategy using a Kalman Filter for hedge ratio estimation.
     Args:
-        data (pd.DataFrame): The historical price data for backtesting.
-        config (BacktestConfig): Configuration for the backtest.
-        x (str): The ticker symbol for the first asset.
-        y (str): The ticker symbol for the second asset.
-        p (float): Initial estimate covariance for Kalman Filter.
-        q (float): Process noise covariance for Kalman Filter.
-        r (float): Measurement noise covariance for Kalman Filter.
+        data (pd.DataFrame): DataFrame containing price data for the two assets.
+        config (BacktestConfig): Configuration parameters for the backtest.
+        x (str): The column name for asset X.
+        y (str): The column name for asset Y.
+        p (float): Process noise covariance for the Kalman Filter.
+        q (float): Measurement noise covariance for the Kalman Filter.
+        r (float): Estimate error covariance for the Kalman Filter.
     Returns:
-        metrics (dict): A dictionary containing performance metrics.
-        n_long_trades (int): The number of long trades executed.
-        n_short_trades (int): The number of short trades executed.
-        portfolio_value (list): The portfolio value over time.
-        final_capital (float): The final capital after backtesting.
+        metrics (dict): Performance metrics of the backtest.
+        w_pred (list): Predicted hedge ratios over time.
+        portfolio_values (list): Portfolio values over time.
+        portfolio_results (pd.DataFrame): Detailed daily portfolio results.
     """
     # Extract config parameters
     capital = config.initial_capital
@@ -76,15 +75,15 @@ def run_backtest(
     kf = KalmanFilter(w0, p, q, r)
 
     portfolio_values = []
-    positions = []
     pending_postitions = [] # Signals to be executed next day
+    daily_portfolio_results = []
 
     n_long_trades = 0
     n_short_trades = 0
 
     # Store predicted hedge ratios
     w_pred = []
-    current_signal = None
+    current_signal = 0
 
     cash = capital
     x_shares = 0
@@ -95,8 +94,6 @@ def run_backtest(
         # Rolling window mu and sigma calculation
         w_data = data.iloc[i-window:i]
         w_spread = w_data[y] - (kf.coef()[0] + kf.coef()[1]*w_data[x])
-        #w_stand_spread = (w_spread - w_spread.mean()) / w_spread.std()
-        #mu, sigma = w_stand_spread.mean(), w_stand_spread.std()
         mu, sigma = w_spread.mean(), w_spread.std()
 
         # Current prices
@@ -131,7 +128,7 @@ def run_backtest(
             today_signal = None
 
         # Save signal for next day execution
-        if today_signal is not None:
+        if today_signal is not None and (today_signal != current_signal):
             j = i + exec_lag
             if j < len(data):
                 exec_date = data.index[j]
@@ -146,30 +143,30 @@ def run_backtest(
             # Remove executed signals
             pending_postitions = [(d, pf) for (d, pf) in pending_postitions if d != today]
 
-        current_portfolio_value = y_shares * y_t + x_shares * x_t + cash
+        current_portfolio_value = y_shares * y_t + x_shares * x_t
         total_equity = current_portfolio_value + cash
 
-        target_y_shares = 0
-        target_x_shares = 0
+        target_y_shares = y_shares
+        target_x_shares = x_shares
         if exec_flag is not None:
             # Close positions
             budget_for_trade = invest_frac * total_equity
             budget_per_asset = budget_for_trade / 2
 
             # Calculate number of shares to trade
-            n_y = np.floor(budget_per_asset / y_t)
-            n_x = np.floor(budget_per_asset / (np.abs(beta_t) * x_t)) # Adjust for hedge ratio
+            n_y = int(np.floor(budget_per_asset / y_t))
+            n_x = int(np.floor(budget_per_asset / (np.abs(beta_t) * x_t))) # Adjust for hedge ratio
 
             # Rebalance positions based on signal
             if exec_flag == 1:
                 # Long Spread (y long, x short)
                 target_y_shares = n_y
-                target_x_shares = -beta_t * n_x
+                target_x_shares = -n_x
                 n_long_trades += 1
             elif exec_flag == -1:
                 # Short Spread (y short, x long)
                 target_y_shares = -n_y
-                target_x_shares = beta_t * n_x
+                target_x_shares = n_x
                 n_short_trades += 1
             elif exec_flag == 0:
                 # Close Positions
@@ -184,8 +181,8 @@ def run_backtest(
 
         cash -= (delta_y * y_t) + (delta_x * x_t) + commission_cost
 
-        y_shares = target_y_shares
-        x_shares = target_x_shares
+        y_shares = int(target_y_shares)
+        x_shares = int(target_x_shares)
 
         # Borrowing cost for short positions
         short_value = abs(min(0, y_shares * y_t)) + abs(min(0, x_shares * x_t))
@@ -199,21 +196,28 @@ def run_backtest(
         # Update signal if was executed
         if exec_flag is not None:
             current_signal = exec_flag
+        signal_today = current_signal
+
+        portfolio_results = {
+            'Date': today,
+            'Alpha': alpha_t,
+            'Beta': beta_t,
+            'Z_Score': z_score,
+            'Signal': signal_today,
+            'Spread': actual_spread,
+            f'{y}_shares': y_shares,
+            f'{x}_shares': x_shares,
+            'Traded_Value': traded_value,
+            'Commission_Cost': commission_cost,
+            'Borrow_Cost': borrow_cost,
+            'Portfolio_Value': portfolio_value,
+            'Total_Equity': total_equity,
+            'Cash': cash
+        }
+        daily_portfolio_results.append(portfolio_results)
+
 
     metrics = get_metrics(portfolio_values)
+    portfolio_results = pd.DataFrame(daily_portfolio_results).set_index('Date')
 
-    return metrics, w_pred, portfolio_values
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return metrics, w_pred, portfolio_values, portfolio_results

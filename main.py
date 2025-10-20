@@ -1,9 +1,11 @@
+import numpy as np
 import pandas as pd
+pd.set_option('display.max_rows', None)
 
 from utils import train_test_validation, standarize_pair
 from cointegration import get_non_stationary_stocks, get_best_cointegrated_pair, get_best_pair
 from sectors import get_sectors
-from visualization import plot_cointegrated_stocks, plot_all_pairs, plot_portfolio_value, plot_estimations
+from visualization import plot_cointegrated_stocks, plot_all_pairs, plot_portfolio_value, plot_estimations, plot_spread_and_signal
 from prints import print_best_pair, print_metrics
 from backtest import run_backtest
 from config import BacktestConfig
@@ -15,14 +17,14 @@ initial_capital = 1_000_000
 commission = 0.125 / 100
 borrow_rate = 0.25 / 100
 invest_fraction = 0.8
-z_threshold = 1.875
+z_threshold = 1.25
 exec_lag = 1
 window = 252
 z_close_threshold = 0.1
 
 p = 0.0001
 q = 0.0001
-r = 1_000
+r = 500_000
 
 def main():
     # ---- Load data and split into train, test, validation sets
@@ -58,6 +60,7 @@ def main():
     plot_cointegrated_stocks(standarized_pair)
     #plot_all_pairs(train, coint_results, estandarize_pair) # Uncomment to plot all found pairs
 
+
     # ---- Backtest configurations
     config = BacktestConfig(
         initial_capital=initial_capital,
@@ -71,10 +74,12 @@ def main():
     )
 
     # ---- Run backtest
-    metrics, w_pred, porfolio_values = run_backtest(data, config, 'MSFT', 'INTU', p, q, r)
+    metrics, w_pred, porfolio_values, portfolio_results = run_backtest(data, config, 'MSFT', 'INTU', p, q, r)
     print_metrics(metrics, z_threshold)
-    plot_estimations(data.index[252:], w_pred)
-    plot_portfolio_value(data.index[252:], porfolio_values)
+    plot_estimations(data.index[window:], w_pred)
+    plot_portfolio_value(data.index[window:], porfolio_values, portfolio_results['Signal'])
+    plot_spread_and_signal(data.index[window:], portfolio_results['Z_Score'], portfolio_results['Signal'], z_threshold)
+    #print(portfolio_results.tail(1000))
 
 
 if __name__ == '__main__':
