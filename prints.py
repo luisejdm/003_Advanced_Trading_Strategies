@@ -7,7 +7,7 @@ def print_best_pair(best_pair: tuple, best_pvalue: float, sector: str) -> None:
         sector (str): The sector of the best cointegrated pair.
     """
     print(
-        f'{'-' * 50}' +
+        f'{'=' * 50}\n' +
         f'\nBest cointegrated pair: {best_pair[0]} - {best_pair[1]} ' +
         f'\nP-value: {best_pvalue:.6f}' +
         f'\nSector: {sector}'

@@ -149,7 +149,7 @@ def run_backtest(
         target_y_shares = y_shares
         target_x_shares = x_shares
         if exec_flag is not None:
-            # Close positions
+            # Determine budget for the trade
             budget_for_trade = invest_frac * total_equity
             budget_per_asset = budget_for_trade / 2
 
@@ -176,9 +176,12 @@ def run_backtest(
         # Execute trades and update cash
         delta_y = target_y_shares - y_shares
         delta_x = target_x_shares - x_shares
+
+        # Calculate transaction costs
         traded_value = (np.abs(delta_y) * y_t) + (np.abs(delta_x) * x_t)
         commission_cost = traded_value * commission
 
+        # Update cash after trades and commission
         cash -= (delta_y * y_t) + (delta_x * x_t) + commission_cost
 
         y_shares = int(target_y_shares)

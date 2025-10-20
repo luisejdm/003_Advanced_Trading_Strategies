@@ -79,11 +79,12 @@ def main():
     metrics, w_pred, porfolio_values, portfolio_results = run_backtest(
         data, config, x, y, p, q, r
     )
+
+    # ---- Print metrics and plot results
     print_metrics(metrics, z_threshold)
     plot_estimations(data.index[window:], w_pred)
     plot_portfolio_value(data.index[window:], porfolio_values, portfolio_results['Signal'])
     plot_spread_and_signal(data.index[window:], portfolio_results['Z_Score'], portfolio_results['Signal'], z_threshold)
-    #print(portfolio_results.tail(1000))
 
 
 if __name__ == '__main__':
