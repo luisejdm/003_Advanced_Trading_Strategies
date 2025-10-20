@@ -21,7 +21,7 @@ def train_test_validation(
     return train_data, test_data, validation_data
 
 
-def estandarize_pair(data: pd.DataFrame) -> pd.DataFrame:
+def standarize_pair(data: pd.DataFrame) -> pd.DataFrame:
     """
     Estandarize the stock prices for plotting purposes.
     Args:

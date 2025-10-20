@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 
 from kalman_filter import KalmanFilter
 from config import BacktestConfig
-from visualization import plot_w
+from visualization import plot_estimations, plot_portfolio_value
+from metrics import get_metrics
 
 @dataclass
 class Position:
@@ -74,7 +75,7 @@ def run_backtest(
     # Initialize Kalman Filter
     kf = KalmanFilter(w0, p, q, r)
 
-    portfolio_value = []
+    portfolio_values = []
     positions = []
     pending_postitions = [] # Signals to be executed next day
 
@@ -94,8 +95,9 @@ def run_backtest(
         # Rolling window mu and sigma calculation
         w_data = data.iloc[i-window:i]
         w_spread = w_data[y] - (kf.coef()[0] + kf.coef()[1]*w_data[x])
-        w_stand_spread = (w_spread - w_spread.mean()) / w_spread.std()
-        mu, sigma = w_stand_spread.mean(), w_stand_spread.std()
+        #w_stand_spread = (w_spread - w_spread.mean()) / w_spread.std()
+        #mu, sigma = w_stand_spread.mean(), w_stand_spread.std()
+        mu, sigma = w_spread.mean(), w_spread.std()
 
         # Current prices
         x_t = data[x].iloc[i]
@@ -192,25 +194,15 @@ def run_backtest(
 
         portfolio_value = y_shares * y_t + x_shares * x_t
         total_equity = portfolio_value + cash
-        portfolio_value.append(total_equity)
+        portfolio_values.append(total_equity)
 
         # Update signal if was executed
         if exec_flag is not None:
             current_signal = exec_flag
 
+    metrics = get_metrics(portfolio_values)
 
-    # Plot hedge ratio over time
-    plot_w(w_pred, data.index[window:])
-
-    # Plot portfolio value over time
-    plt.figure()
-    plt.plot(data.index[window:], portfolio_value, label='Portfolio Value', color='seagreen')
-    plt.title('Portfolio Value Over Time')
-    plt.xlabel('Date')
-    plt.ylabel('Portfolio Value')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    return metrics, w_pred, portfolio_values
 
 
 

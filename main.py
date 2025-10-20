@@ -1,52 +1,81 @@
 import pandas as pd
 
-from utils import train_test_validation, estandarize_pair
+from utils import train_test_validation, standarize_pair
 from cointegration import get_non_stationary_stocks, get_best_cointegrated_pair, get_best_pair
 from sectors import get_sectors
-from visualization import plot_cointegrated_stocks, plot_all_pairs
-from prints import print_best_pair
+from visualization import plot_cointegrated_stocks, plot_all_pairs, plot_portfolio_value, plot_estimations
+from prints import print_best_pair, print_metrics
 from backtest import run_backtest
 from config import BacktestConfig
 
 
+use_best_pair = True
+
+initial_capital = 1_000_000
+commission = 0.125 / 100
+borrow_rate = 0.25 / 100
+invest_fraction = 0.8
+z_threshold = 1.875
+exec_lag = 1
+window = 252
+z_close_threshold = 0.1
+
+p = 0.0001
+q = 0.0001
+r = 1_000
+
 def main():
-    # Load and preprocess data
+    # ---- Load data and split into train, test, validation sets
     data = pd.read_csv('stocks.csv')
     data['Date'] = pd.to_datetime(data['Date'])
     data.set_index('Date', inplace=True)
     train, test, validation = train_test_validation(data, 0.6, 0.2, 0.2)
 
-    # Get only non-stationary stocks for cointegration analysis
-    non_stationary_stocks = get_non_stationary_stocks(train, 0.01)
-    data = data[non_stationary_stocks]
+    # ---- Cointegration analysis
+    if not use_best_pair:
+        # Get only non-stationary stocks for cointegration analysis
+        non_stationary_stocks = get_non_stationary_stocks(train, 0.01)
+        data = data[non_stationary_stocks]
 
-    # Get stock classification by sectors
-    sectors = get_sectors()
+        # Get stock classification by sectors
+        sectors = get_sectors()
 
-    # Get the best cointegrated pair by sectors
-    coint_results, best_pair, best_pvalue, best_sector = get_best_cointegrated_pair(
-        train, sectors, 0.01
-    )
+        # Get the best cointegrated pair by sectors
+        coint_results, best_pair, best_pvalue, best_sector = get_best_cointegrated_pair(
+            train, sectors, 0.01
+        )
 
-    # Estandarize the best pair for plotting
-    pair_data = data[[best_pair[0], best_pair[1]]]
-    estandarized_pair = estandarize_pair(pair_data)
+        # Estandarize the best pair for plotting
+        pair_data = data[[best_pair[0], best_pair[1]]]
+        standarized_pair = standarize_pair(pair_data)
+
+    else:
+        best_pair, best_pvalue, best_sector = get_best_pair()
+        pair_data = data[[best_pair[0], best_pair[1]]]
+        standarized_pair = standarize_pair(pair_data)
+
     print_best_pair(best_pair, best_pvalue, best_sector)
-    plot_cointegrated_stocks(estandarized_pair)
+    plot_cointegrated_stocks(standarized_pair)
     #plot_all_pairs(train, coint_results, estandarize_pair) # Uncomment to plot all found pairs
 
-    # Start backtesting here...
+    # ---- Backtest configurations
     config = BacktestConfig(
-        initial_capital=100000,
-        commission=0.125 / 100,
-        borrow_rate=0.25 / 100,
-        invest_fraction=0.8,
-        z_threshold=1.75,
-        exec_lag=1,
-        window=252,
-        z_close_threshold=0.1
+        initial_capital=initial_capital,
+        commission=commission,
+        borrow_rate=borrow_rate,
+        invest_fraction=invest_fraction,
+        z_threshold=z_threshold,
+        exec_lag=exec_lag,
+        window=window,
+        z_close_threshold=z_close_threshold
     )
-    run_backtest(data, config, 'MSFT', 'AAPL', 0.001, 0.001, 5)
+
+    # ---- Run backtest
+    metrics, w_pred, porfolio_values = run_backtest(data, config, 'MSFT', 'INTU', p, q, r)
+    print_metrics(metrics, z_threshold)
+    plot_estimations(data.index[252:], w_pred)
+    plot_portfolio_value(data.index[252:], porfolio_values)
+
 
 if __name__ == '__main__':
     main()

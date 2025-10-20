@@ -109,10 +109,13 @@ def get_best_cointegrated_pair(data: pd.DataFrame, sectors: dict, alpha: float =
     return coint_results, best_pair, best_pvalue, best_sector
 
 
-def get_best_pair() -> tuple:
+def get_best_pair() -> tuple[tuple, float, str]:
     """
     Get the best cointegrated pair.
     Returns:
-        tuple: The best cointegrated pair of stock tickers.
+        tuple: The best cointegrated pair, its p-value, and its sector.
     """
-    return 'MSFT', 'INTU'
+    best_pair = ('MSFT', 'INTU')
+    best_pvalue = 0.000077
+    best_sector = 'Information Technology'
+    return best_pair, best_pvalue, best_sector
