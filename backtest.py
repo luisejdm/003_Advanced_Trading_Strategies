@@ -216,8 +216,7 @@ def run_backtest(
         }
         daily_portfolio_results.append(portfolio_results)
 
-
-    metrics = get_metrics(portfolio_values)
     portfolio_results = pd.DataFrame(daily_portfolio_results).set_index('Date')
+    metrics = get_metrics(portfolio_results['Total_Equity'].values)
 
     return metrics, w_pred, portfolio_values, portfolio_results

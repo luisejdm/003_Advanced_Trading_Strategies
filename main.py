@@ -17,14 +17,14 @@ initial_capital = 1_000_000
 commission = 0.125 / 100
 borrow_rate = 0.25 / 100
 invest_fraction = 0.8
-z_threshold = 1.25
+z_threshold = 1
 exec_lag = 1
 window = 252
 z_close_threshold = 0.1
 
 p = 0.0001
 q = 0.0001
-r = 500_000
+r = 100_000
 
 def main():
     # ---- Load data and split into train, test, validation sets
@@ -46,6 +46,7 @@ def main():
         coint_results, best_pair, best_pvalue, best_sector = get_best_cointegrated_pair(
             train, sectors, 0.01
         )
+        x, y = best_pair[0], best_pair[1]
 
         # Estandarize the best pair for plotting
         pair_data = data[[best_pair[0], best_pair[1]]]
@@ -53,6 +54,7 @@ def main():
 
     else:
         best_pair, best_pvalue, best_sector = get_best_pair()
+        x, y = best_pair[0], best_pair[1]
         pair_data = data[[best_pair[0], best_pair[1]]]
         standarized_pair = standarize_pair(pair_data)
 
@@ -74,7 +76,9 @@ def main():
     )
 
     # ---- Run backtest
-    metrics, w_pred, porfolio_values, portfolio_results = run_backtest(data, config, 'MSFT', 'INTU', p, q, r)
+    metrics, w_pred, porfolio_values, portfolio_results = run_backtest(
+        data, config, x, y, p, q, r
+    )
     print_metrics(metrics, z_threshold)
     plot_estimations(data.index[window:], w_pred)
     plot_portfolio_value(data.index[window:], porfolio_values, portfolio_results['Signal'])
