@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 
 from kalman_filter import KalmanFilter
 from config import BacktestConfig
-from visualization import plot_estimations, plot_portfolio_value
 from metrics import get_metrics
 
 @dataclass
@@ -54,7 +53,6 @@ def run_backtest(
     capital = config.initial_capital
     commission = config.commission
     z_threshold = config.z_threshold
-    exec_lag = config.exec_lag
     borrow_rate = config.borrow_rate
     daily_borrow_rate = borrow_rate / 252
     window = config.window
@@ -103,53 +101,31 @@ def run_backtest(
         # Predict hedge ratio using Kalman Filter
         w_t = kf.predict(x_t, y_t)
         w_pred.append(w_t)
-        alpha_t, beta_t = w_t.ravel()
+        alpha_t, beta_t = w_t[0], w_t[1]
 
         # Calculate z-score of the spread
         actual_spread = y_t - (alpha_t + beta_t * x_t)
         z_score = (actual_spread - mu) / sigma
 
-        # Generate trading signals
-        if np.isfinite(z_score):
-            # Close position
-            if np.abs(z_score) <= z_close_threshold:
-                today_signal = 0  # Close positions
+        if np.abs(z_score) <= z_close_threshold:
+            today_signal = 0  # Close positions
 
-            # Open Positions
-            elif z_score > z_threshold:
-                today_signal = -1 # Short spread (y short, x long)
-            elif z_score < -z_threshold:
-                today_signal = 1 # Long spread (y long, x short)
+        # Open Positions
+        elif z_score > z_threshold:
+            today_signal = -1 # Short spread (y short, x long)
+        elif z_score < -z_threshold:
+            today_signal = 1 # Long spread (y long, x short)
 
-            # If no signal, maintain current position
-            else:
-                today_signal = current_signal
+        # If no signal, maintain current position
         else:
-            today_signal = None
-
-        # Save signal for next day execution
-        if today_signal is not None and (today_signal != current_signal):
-            j = i + exec_lag
-            if j < len(data):
-                exec_date = data.index[j]
-                pending_postitions.append((exec_date, today_signal))
-
-        # Check for signals to execute today
-        exec_flag = None # Initialize signal to execute today
-        today = data.index[i]
-        if pending_postitions and any(d == today for d, _ in pending_postitions):
-            signal = [pending_signal for (d, pending_signal) in pending_postitions if d == today]
-            exec_flag = signal[-1]
-            # Remove executed signals
-            pending_postitions = [(d, pf) for (d, pf) in pending_postitions if d != today]
-
-        current_portfolio_value = y_shares * y_t + x_shares * x_t
-        total_equity = current_portfolio_value + cash
+            today_signal = current_signal
 
         target_y_shares = y_shares
         target_x_shares = x_shares
-        if exec_flag is not None:
+        if today_signal != current_signal:
             # Determine budget for the trade
+            current_portfolio_value = y_shares * y_t + x_shares * x_t
+            total_equity = current_portfolio_value + cash
             budget_for_trade = invest_frac * total_equity
             budget_per_asset = budget_for_trade / 2
 
@@ -158,17 +134,17 @@ def run_backtest(
             n_x = int(np.floor(budget_per_asset / (np.abs(beta_t) * x_t))) # Adjust for hedge ratio
 
             # Rebalance positions based on signal
-            if exec_flag == 1:
+            if today_signal == 1:
                 # Long Spread (y long, x short)
                 target_y_shares = n_y
                 target_x_shares = -n_x
                 n_long_trades += 1
-            elif exec_flag == -1:
+            elif today_signal == -1:
                 # Short Spread (y short, x long)
                 target_y_shares = -n_y
                 target_x_shares = n_x
                 n_short_trades += 1
-            elif exec_flag == 0:
+            elif today_signal == 0:
                 # Close Positions
                 target_y_shares = 0
                 target_x_shares = 0
@@ -197,16 +173,15 @@ def run_backtest(
         portfolio_values.append(total_equity)
 
         # Update signal if was executed
-        if exec_flag is not None:
-            current_signal = exec_flag
-        signal_today = current_signal
+        current_signal = today_signal
+        today = data.index[i]
 
         portfolio_results = {
             'Date': today,
             'Alpha': alpha_t,
             'Beta': beta_t,
             'Z_Score': z_score,
-            'Signal': signal_today,
+            'Signal': current_signal,
             'Spread': actual_spread,
             f'{y}_shares': y_shares,
             f'{x}_shares': x_shares,

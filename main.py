@@ -18,7 +18,6 @@ commission = 0.125 / 100
 borrow_rate = 0.25 / 100
 invest_fraction = 0.8
 z_threshold = 1
-exec_lag = 1
 window = 252
 z_close_threshold = 0.1
 
@@ -70,7 +69,6 @@ def main():
         borrow_rate=borrow_rate,
         invest_fraction=invest_fraction,
         z_threshold=z_threshold,
-        exec_lag=exec_lag,
         window=window,
         z_close_threshold=z_close_threshold
     )

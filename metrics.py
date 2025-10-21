@@ -14,8 +14,8 @@ def get_sharpe(data: pd.DataFrame) -> float:
     mean = data.rets.mean()
     std = data.rets.std()
 
-    annual_rets = mean * (365*24)
-    annual_std = std * np.sqrt(365*24)
+    annual_rets = mean * 252
+    annual_std = std * np.sqrt(252)
 
     return annual_rets / annual_std if annual_std != 0 else 0
 
@@ -33,9 +33,9 @@ def get_sortino(data: pd.DataFrame) -> float:
     std = data.rets.std()
     down_risk = data.rets[data.rets < 0].fillna(0).std()
 
-    annual_rets = mean * (365*24)
-    annual_std = std * np.sqrt(365*24)
-    annual_down_risk = down_risk * np.sqrt(365*24)
+    annual_rets = mean * 252
+    annual_std = std * np.sqrt(252)
+    annual_down_risk = down_risk * np.sqrt(252)
 
     return annual_rets / annual_down_risk if annual_std != 0 else 0
 
@@ -54,18 +54,16 @@ def get_maximum_drawdown(data: pd.DataFrame) -> float:
     return max_drawdown.max()
 
 
-def get_calmar(data: pd.DataFrame, periods_per_year: int = 365*24) -> float:
+def get_calmar(data: pd.DataFrame) -> float:
     """
     Calculate the Calmar ratio of the portfolio.
     Args:
         data (pd.DataFrame): A DataFrame containing the portfolio values over time.
-        periods_per_year (int): Number of periods in a year. Default is 365*24 for hourly data.
-
     Returns:
         calmar_ratio (float): The Calmar ratio of the portfolio.
     """
     mean = data.rets.mean()
-    annual_rets = mean * periods_per_year
+    annual_rets = mean * 252
     max_drawdown = get_maximum_drawdown(data)
     return annual_rets / max_drawdown if max_drawdown != 0 else 0
 
