@@ -2,6 +2,7 @@ import itertools
 import pandas as pd
 from statsmodels.tsa.stattools import adfuller
 import statsmodels.api as sm
+import numpy as np
 
 
 def check_price_stationarity(prices: pd.Series, alpha: float = 0.05) -> bool:
@@ -34,49 +35,71 @@ def get_non_stationary_stocks(data: pd.DataFrame, alpha: float = 0.05) -> list:
     return non_stationary_stocks
 
 
-def check_pair_cointegration(data, tickers, alpha=0.05) -> list:
+def check_pair_correlation_and_cointegration(
+    data: pd.DataFrame,
+    tickers: list,
+    alpha: float,
+    window: int,
+    correlation_threshold: float
+) -> list:
     """
-    Check if a pair of stocks is cointegrated using the Engle-Granger two-step method.
-    Args:
-        data (pd.DataFrame): DataFrame containing stock price series.
-        tickers (list): List of stock tickers to be tested for cointegration.
-        alpha (float): Significance level for the cointegration test.
-    Returns:
-        list: List of tuples containing cointegrated pairs and their p-values.
+    Primero filtra pares con suficiente correlación rolling en rendimientos y,
+    para los que pasen el filtro, aplica Engle-Granger sobre PRECIOS.
+    Retorna lista de tuplas (t1, t2, p_value) sólo para pares cointegrados.
+
+    Params:
+        data: precios (columnas = tickers)
+        tickers: lista de símbolos a evaluar
+        alpha: nivel de significancia para ADF de residuos
+        window: ventana para la correlación rolling de rendimientos
+        correlation_threshold: umbral mínimo de correlación media (rolling)
+
+    Nota:
+      - Se alinea por fechas para cada par.
+      - Se usa la media de la correlación rolling sobre el periodo disponible.
+      - Se asegura que los residuos de OLS entren a ADF como vector 1D.
     """
     coint_pairs = []
 
     for t1, t2 in itertools.combinations(tickers, 2):
-        series1 = data[t1].dropna()
-        series2 = data[t2].dropna()
+        # Filter by rolling correlation of returns
+        pair_prices = pd.concat([data[t1], data[t2]], axis=1, join="inner").dropna()
+        returns = pair_prices.pct_change().dropna()
+        roll_corr = returns[t1].rolling(window).corr(returns[t2]).dropna()
+        mean_roll_corr = roll_corr.mean()
 
-        # Alinear fechas
-        combined = pd.concat([series1, series2], axis=1, join="inner").dropna()
+        if np.abs(mean_roll_corr) < correlation_threshold:
+            continue  # Skip pairs that do not meet the correlation threshold
 
-        y = combined[t1]
-        x = sm.add_constant(combined[t2])
+        y = pair_prices[t1]
+        x = sm.add_constant(pair_prices[t2])
 
-        # Regresión lineal
         model = sm.OLS(y, x).fit()
         residuals = model.resid
 
-        # Prueba ADF sobre los residuos
-        adf_stat, p_value, _, _, _, _ = adfuller(residuals)
+        _, p_value, _, _, _, _ = adfuller(residuals)
 
-        # Si los residuos son estacionarios, los precios están cointegrados
         if p_value < alpha:
-            coint_pairs.append((t1, t2, p_value))
+            coint_pairs.append((t1, t2, p_value, mean_roll_corr))
 
     return coint_pairs
 
 
-def get_best_cointegrated_pair(data: pd.DataFrame, sectors: dict, alpha: float = 0.05) -> tuple[dict, tuple, float, str]:
+def get_best_cointegrated_pair(
+        data: pd.DataFrame,
+        sectors: dict,
+        alpha: float,
+        window: int,
+        correlation_threshold: float
+) -> tuple[dict, tuple, float, str]:
     """
     Get cointegrated pairs of stocks grouped by their sectors.
     Args:
         data (pd.DataFrame): DataFrame containing stock price series.
         sectors (dict): Dictionary mapping sector names to lists of stock tickers.
         alpha (float): Significance level for the cointegration test.
+        window (int): Window size for rolling correlation.
+        correlation_threshold (float): Correlation threshold for the cointegration test.
     Returns:
         dict: Dictionary with sector names as keys and lists of cointegrated pairs as values.
         tuple: The best cointegrated pair and its p-value.
@@ -88,10 +111,23 @@ def get_best_cointegrated_pair(data: pd.DataFrame, sectors: dict, alpha: float =
     print(f'\n{"=" * 50}\n\nSTARTING COINTEGRATION ANALYSIS\n')
     for sector_name, tickers in sectors.items():
         print(f'  Analizing {sector_name} sector...')
-        pairs = check_pair_cointegration(data, tickers, alpha)
+        pairs = check_pair_correlation_and_cointegration(
+            data, tickers, alpha, window, correlation_threshold
+        )
+
+        #Print all the found pairs in the sector
+        if pairs:
+            print(f'    Found {len(pairs)} cointegrated pairs:')
+            for t1, t2, pvalue, corr in pairs:
+                print(f'      - {t1} & {t2} | p-value: {pvalue:.6f} | Rolling Corr: {corr:.6f}')
+            print()
+        else:
+            print(f'    No cointegrated pairs found.\n')
+
+        # Store results
         coint_results[sector_name] = pairs
     total_pairs = sum(len(pairs) for pairs in coint_results.values())
-    print(f'\nTotal cointegrated pairs found: {total_pairs}. (Confidence level: {1 - alpha:.2%})')
+    print(f'Total cointegrated pairs found: {total_pairs}. (Confidence level: {1 - alpha:.2%})\n')
 
     # Initialize variables to track the best pair
     best_pair = None

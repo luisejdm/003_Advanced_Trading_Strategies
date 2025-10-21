@@ -11,7 +11,7 @@ from backtest import run_backtest
 from config import BacktestConfig
 
 
-use_best_pair = True
+use_best_pair = False
 
 initial_capital = 1_000_000
 commission = 0.125 / 100
@@ -44,7 +44,7 @@ def main():
 
         # Get the best cointegrated pair by sectors
         coint_results, best_pair, best_pvalue, best_sector = get_best_cointegrated_pair(
-            train, sectors, 0.01
+            train, sectors, 0.01, 50, 0.5
         )
         x, y = best_pair[0], best_pair[1]
 
