@@ -17,13 +17,14 @@ initial_capital = 1_000_000
 commission = 0.125 / 100
 borrow_rate = 0.25 / 100
 invest_fraction = 0.8
-z_threshold = 1
 window = 252
 z_close_threshold = 0.1
 
 p = 0.001
 q = 0.001
 r = 100_000
+
+optimize_metric = 'Sortino'
 
 def main():
     # ---- Load data and split into train, test, validation sets
@@ -61,14 +62,35 @@ def main():
     plot_cointegrated_stocks(standarized_pair)
     #plot_all_pairs(train, coint_results, estandarize_pair) # Uncomment to plot all found pairs
 
+    # ---- Run backtet on train to get optimal z-score threshold
+    z_threshold = np.linspace(0.1, 2.75, 15)
+    metrics_list = []
+    for z in z_threshold:
+        config = BacktestConfig(
+            initial_capital=initial_capital,
+            commission=commission,
+            borrow_rate=borrow_rate,
+            invest_fraction=invest_fraction,
+            z_threshold=z,
+            window=window,
+            z_close_threshold=z_close_threshold
+        )
+        metrics, w_pred, porfolio_values, portfolio_results = run_backtest(
+            train, config, x, y, p, q, r
+        )
+        metrics_list.append((z, metrics[optimize_metric]))
+    metrics_df = pd.DataFrame(metrics_list, columns=['Z_score', optimize_metric])
+    optimal_z = metrics_df.loc[metrics_df[optimize_metric].idxmax(), 'Z_score']
+    print(metrics_df)
+    print(f'\nOptimal Z-Score Threshold on Train Set: {optimal_z:.4f}\n')
 
-    # ---- Backtest configurations
+    # ---- Run Backtest on Test + Validation with optimal z-score
     config = BacktestConfig(
         initial_capital=initial_capital,
         commission=commission,
         borrow_rate=borrow_rate,
         invest_fraction=invest_fraction,
-        z_threshold=z_threshold,
+        z_threshold=optimal_z,
         window=window,
         z_close_threshold=z_close_threshold
     )
@@ -79,10 +101,10 @@ def main():
     )
 
     # ---- Print metrics and plot results
-    print_metrics(metrics, z_threshold)
+    print_metrics(metrics, optimal_z)
     plot_estimations(data.index[window:], w_pred)
     plot_portfolio_value(data.index[window:], porfolio_values, portfolio_results['Signal'])
-    plot_spread_and_signal(data.index[window:], portfolio_results['Z_Score'], portfolio_results['Signal'], z_threshold)
+    plot_spread_and_signal(data.index[window:], portfolio_results['Z_Score'], portfolio_results['Signal'], optimal_z)
 
 
 if __name__ == '__main__':
