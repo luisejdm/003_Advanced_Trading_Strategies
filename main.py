@@ -22,8 +22,8 @@ exec_lag = 1
 window = 252
 z_close_threshold = 0.1
 
-p = 0.0001
-q = 0.0001
+p = 0.001
+q = 0.001
 r = 100_000
 
 def main():
