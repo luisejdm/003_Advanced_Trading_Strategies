@@ -136,7 +136,6 @@ def plot_portfolio_value(
     ax2.set_xlabel('Date')
     ax2.set_ylabel('Signal')
     ax2.set_ylim(-2, 2)
-    ax2.legend(loc='upper left')
     ax2.grid(True)
 
     plt.tight_layout()
@@ -157,21 +156,22 @@ def plot_spread_and_signal(
         last_train_date: Last date of the training set.
         last_test_date: Last date of the test set.
     """
+    # Create Series for easier indexing
     idx = pd.Index(dates)
     spd = pd.Series(spread, index=idx)
     sig = pd.Series(signals, index=idx)
 
+    # Separate for train, test and validation
     train = idx <= last_train_date
     test = (idx > last_train_date) & (idx <= last_test_date)
     val = idx > last_test_date
 
-    # --- Subplots con proporciones ---
+    # Subplots
     fig, (ax1, ax2) = plt.subplots(
         2, 1, sharex=True, figsize=(14, 10),
         gridspec_kw={'height_ratios': [3, 1]}
     )
 
-    # --- Spread con bandas ---
     ax1.plot(spd.index[train], spd[train], label='Train', linewidth=1.5, color='#1C478B')
     ax1.plot(spd.index[test], spd[test], label='Test', linewidth=1.5, color='cadetblue')
     ax1.plot(spd.index[val], spd[val], label='Validation', linewidth=1.5, color='dodgerblue')
@@ -179,13 +179,11 @@ def plot_spread_and_signal(
     ax1.axhline(y=z_threshold, color='firebrick', linestyle='--', linewidth=2.5, label='Z-Score Thresholds')
     ax1.axhline(y=-z_threshold, color='firebrick', linestyle='--', linewidth=2.5)
 
-    # Líneas verticales para los cortes
     if last_train_date:
         ax1.axvline(x=last_train_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
     if last_test_date:
         ax1.axvline(x=last_test_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
 
-    # Etiquetas de los thresholds
     ax1.text(dates[0], z_threshold + 0.1, f'+{z_threshold:.2f}', color='firebrick',
              fontsize=13, va='bottom', fontweight='bold')
     ax1.text(dates[0], -z_threshold - 0.1, f'-{z_threshold:.2f}', color='firebrick',
@@ -197,7 +195,6 @@ def plot_spread_and_signal(
     ax1.legend(loc='upper right')
     ax1.grid(True)
 
-    # --- Señales ---
     ax2.plot(sig.index[train], sig[train],
              label='Train', drawstyle='steps-post', linewidth=1.5, color='#1C478B')
     ax2.plot(sig.index[test], sig[test],
@@ -214,7 +211,6 @@ def plot_spread_and_signal(
     ax2.set_xlabel('Date')
     ax2.set_ylabel('Signal')
     ax2.set_ylim(-2, 2)
-    ax2.legend(loc='upper left')
     ax2.grid(True)
 
     plt.tight_layout()

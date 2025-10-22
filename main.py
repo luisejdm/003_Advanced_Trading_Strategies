@@ -19,14 +19,14 @@ borrow_rate = 0.25 / 100
 invest_fraction = 0.8
 window = 252
 
-correlation_threshold = 0.5
+correlation_threshold = 0.7
 
 z_close_threshold = 0.1 # Acceptable distance to close the position
 z_threshold = np.linspace(0.1, 2.75, 20)
 
-p = 0.001
-q = 0.001
-r = 100
+p = 0.0001
+q = 0.0001
+r = 1_000
 
 optimize_metric = 'Sortino'
 
