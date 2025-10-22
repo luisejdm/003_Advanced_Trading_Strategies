@@ -21,7 +21,7 @@ window = 252
 
 correlation_threshold = 0.5
 
-z_close_threshold = 0.1
+z_close_threshold = 0.1 # Acceptable distance to close the position
 z_threshold = np.linspace(0.1, 2.75, 20)
 
 p = 0.001
