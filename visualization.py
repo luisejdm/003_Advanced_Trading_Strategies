@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from mpl_toolkits.mplot3d.art3d import rotate_axes
+import seaborn as sns
 
 plt.rcParams['figure.figsize'] = [14, 8]
 plt.rcParams['axes.titlesize'] = 16
@@ -24,7 +24,7 @@ def plot_cointegrated_stocks(data: pd.DataFrame)-> None:
     """
     plt.figure()
     plt.plot(data.index, data.iloc[:, 0], label=data.columns[0], color='cadetblue')
-    plt.plot(data.index, data.iloc[:, 1], label=data.columns[1], color='darkslateblue')
+    plt.plot(data.index, data.iloc[:, 1], label=data.columns[1], color='#1C478B')
     plt.title('Price Series of Cointegrated Stocks')
     plt.xlabel('Date')
     plt.ylabel('Price')
@@ -75,7 +75,7 @@ def plot_estimations(index: pd.Index, w_pred: list, ) -> None:
 
     ax2 = ax1.twinx()
     ax2.set_ylabel('β', rotation=0, labelpad=15)
-    ax2.plot(w_df.index, w_df['beta'], color='darkslateblue', label='β')
+    ax2.plot(w_df.index, w_df['beta'], color='#1C478B', label='β')
     ax2.tick_params(axis='y')
 
     lines_1, labels_1 = ax1.get_legend_handles_labels()
@@ -84,27 +84,54 @@ def plot_estimations(index: pd.Index, w_pred: list, ) -> None:
     plt.show()
 
 
-def plot_portfolio_value(dates: pd.Index, portfolio_values: list, signals: np.ndarray) -> None:
+def plot_portfolio_value(
+        dates: pd.Index, portfolio_values: list, signals: np.ndarray,
+        last_train_date, last_test_date
+) -> None:
     """
     Plot the portfolio value over time.
     Args:
         dates (pd.Index): Index of dates.
         portfolio_values (list): List of portfolio values corresponding to the dates.
         signals (np.ndarray): Array of trading signals corresponding to the dates.
+        last_train_date: Last date of the training set.
+        last_test_date: Last date of the test set.
     """
-    # Subplots con proporción de alturas: el portafolio más grande
+    # Create Series for easier indexing
+    idx = pd.Index(dates)
+    pv = pd.Series(portfolio_values, index=idx)
+    sig = pd.Series(signals, index=idx)
+
+    # Separate for train, test and validation
+    train = idx <= last_train_date
+    test = (idx > last_train_date) & (idx <= last_test_date)
+    val = idx > last_test_date
+
+    # Subplots
     fig, (ax1, ax2) = plt.subplots(
         2, 1, sharex=True, figsize=(14, 10),
         gridspec_kw={'height_ratios': [3, 1]}
     )
 
-    ax1.plot(dates, portfolio_values, label='Portfolio Value', color='darkslateblue')
+    ax1.plot(pv.index[train], pv[train], label='Train', linewidth=1.8, color='#1C478B')
+    ax1.plot(pv.index[test], pv[test], label='Test', linewidth=1.8, color='cadetblue')
+    ax1.plot(pv.index[val], pv[val], label='Validation', linewidth=1.8, color='dodgerblue')
+
+    ax1.axvline(x=last_train_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+    ax1.axvline(x=last_test_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+
     ax1.set_title('Portfolio Value Over Time')
     ax1.set_ylabel('Portfolio Value')
     ax1.legend(loc='upper left')
     ax1.grid(True)
 
-    ax2.plot(dates, signals, label='Trading Signal', color='darkslateblue', drawstyle='steps-post')
+    ax2.plot(sig.index[train], sig[train], label='Train', drawstyle='steps-post', color='#1C478B')
+    ax2.plot(sig.index[test], sig[test], label='Test', drawstyle='steps-post', color='cadetblue')
+    ax2.plot(sig.index[val], sig[val], label='Validation', drawstyle='steps-post', color='dodgerblue')
+
+    ax2.axvline(x=last_train_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+    ax2.axvline(x=last_test_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+
     ax2.set_title('Trading Signals Over Time')
     ax2.set_xlabel('Date')
     ax2.set_ylabel('Signal')
@@ -116,7 +143,10 @@ def plot_portfolio_value(dates: pd.Index, portfolio_values: list, signals: np.nd
     plt.show()
 
 
-def plot_spread_and_signal(dates: pd.Index, spread: np.ndarray, signals: np.ndarray, z_threshold: float) -> None:
+def plot_spread_and_signal(
+        dates: pd.Index, spread: np.ndarray, signals: np.ndarray, z_threshold: float,
+        last_train_date=None, last_test_date=None
+) -> None:
     """
     Plot the spread and trading signals over time in subplots.
     Args:
@@ -124,30 +154,86 @@ def plot_spread_and_signal(dates: pd.Index, spread: np.ndarray, signals: np.ndar
         spread (np.ndarray): Array of spread values corresponding to the dates.
         signals (np.ndarray): Array of trading signals corresponding to the dates.
         z_threshold (np.ndarray): Array of z-threshold values for reference.
+        last_train_date: Last date of the training set.
+        last_test_date: Last date of the test set.
     """
-    # El subplot superior será 3 veces más alto que el inferior
+    idx = pd.Index(dates)
+    spd = pd.Series(spread, index=idx)
+    sig = pd.Series(signals, index=idx)
+
+    train = idx <= last_train_date
+    test = (idx > last_train_date) & (idx <= last_test_date)
+    val = idx > last_test_date
+
+    # --- Subplots con proporciones ---
     fig, (ax1, ax2) = plt.subplots(
         2, 1, sharex=True, figsize=(14, 10),
         gridspec_kw={'height_ratios': [3, 1]}
     )
-    ax1.plot(dates, spread, label='Spread', color='darkslateblue')
-    ax1.axhline(y=z_threshold, color='firebrick', linestyle='--', linewidth=2.5, label=f'Z-Score Thresholds')
+
+    # --- Spread con bandas ---
+    ax1.plot(spd.index[train], spd[train], label='Train', linewidth=1.5, color='#1C478B')
+    ax1.plot(spd.index[test], spd[test], label='Test', linewidth=1.5, color='cadetblue')
+    ax1.plot(spd.index[val], spd[val], label='Validation', linewidth=1.5, color='dodgerblue')
+
+    ax1.axhline(y=z_threshold, color='firebrick', linestyle='--', linewidth=2.5, label='Z-Score Thresholds')
     ax1.axhline(y=-z_threshold, color='firebrick', linestyle='--', linewidth=2.5)
-    ax1.text(dates[0], z_threshold + 0.1, f'+{z_threshold:.4f}', color='firebrick', fontsize=14, va='bottom', fontweight='bold')
-    ax1.text(dates[0], -z_threshold - 0.1, f'-{z_threshold:.4f}', color='firebrick', fontsize=14, va='top', fontweight='bold')
+
+    # Líneas verticales para los cortes
+    if last_train_date:
+        ax1.axvline(x=last_train_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+    if last_test_date:
+        ax1.axvline(x=last_test_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+
+    # Etiquetas de los thresholds
+    ax1.text(dates[0], z_threshold + 0.1, f'+{z_threshold:.2f}', color='firebrick',
+             fontsize=13, va='bottom', fontweight='bold')
+    ax1.text(dates[0], -z_threshold - 0.1, f'-{z_threshold:.2f}', color='firebrick',
+             fontsize=13, va='top', fontweight='bold')
+
     ax1.set_title('Spread Over Time')
     ax1.set_ylabel('Spread')
-    ax1.set_ylim(spread.min()-0.5, spread.max()+0.5)
+    ax1.set_ylim(spread.min() - 0.5, spread.max() + 0.5)
     ax1.legend(loc='upper right')
     ax1.grid(True)
 
-    ax2.plot(dates, signals, label='Trading Signal', color='darkslateblue', drawstyle='steps-post')
+    # --- Señales ---
+    ax2.plot(sig.index[train], sig[train],
+             label='Train', drawstyle='steps-post', linewidth=1.5, color='#1C478B')
+    ax2.plot(sig.index[test], sig[test],
+             label='Test', drawstyle='steps-post', linewidth=1.5, color='cadetblue')
+    ax2.plot(sig.index[val], sig[val],
+             label='Validation', drawstyle='steps-post', linewidth=1.5, color='dodgerblue')
+
+    if last_train_date:
+        ax2.axvline(x=last_train_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+    if last_test_date:
+        ax2.axvline(x=last_test_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+
     ax2.set_title('Trading Signals Over Time')
     ax2.set_xlabel('Date')
     ax2.set_ylabel('Signal')
     ax2.set_ylim(-2, 2)
-    ax2.legend()
+    ax2.legend(loc='upper left')
     ax2.grid(True)
 
     plt.tight_layout()
+    plt.show()
+
+
+def plot_trade_returns(returns: list) -> None:
+    """
+    Plot a histogram of portfolio returns.
+    Args:
+        returns (list): A list of portfolio returns.
+    """
+    plt.figure()
+    sns.histplot(returns, color='#1C478B', alpha=0.3, kde=True, bins=50, edgecolor=None,
+                 label='Trade Returns')
+    plt.title('Overall Trade Returns Distribution')
+    plt.xlabel('Return')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.axvline(x=0, color='k', linestyle='--')
+    plt.grid()
     plt.show()

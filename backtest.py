@@ -1,37 +1,44 @@
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 from kalman_filter import KalmanFilter
 from config import BacktestConfig
 from metrics import get_metrics
+from utils import get_portfolio_value, filter_positions, get_individual_trade_returns
+
 
 @dataclass
 class Position:
     """
     Represents a trading position.
     Attributes:
-        n_shares (float): The number of shares in the position.
-        price (pd.Series): The entry price of the position.
-        sl (float): The stop-loss price.
-        tp (float): The take-profit price.
-        time (pd.Series): The time the position was opened.
-        is_win (bool): Indicates if the position was closed at a profit.
         type (str): The type of position ('long' or 'short').
+        ticker (str): The asset ticker.
+        entry_date (pd.Timestamp): The date the position was entered.
+        entry_price (float): The price at which the position was entered.
+        n_shares (int): The number of shares in the position.
+        borrow_cost (float): The accumulated borrow cost for short positions.
+        commission_cost (float): The total commission cost for the position.
+        exit_date (pd.Timestamp, optional): The date the position was exited.
+        exit_price (float, optional): The price at which the position was exited.
+        is_win (bool, optional): Indicates if the position was profitable.
     """
-    n_shares: float
-    price: float
-    sl: float
-    tp: float
-    time: pd.Timestamp
+    type: str  # 'long' or 'short'
+    ticker: str # Asset ticker
+    entry_date: pd.Timestamp
+    entry_price: float
+    n_shares: int
+    borrow_cost: float = 0.0
+    commission_cost: float = 0.0
+    exit_date: pd.Timestamp = None
+    exit_price: float = None
     is_win: bool = None
-    type: str = None
-
 
 def run_backtest(
         data: pd.DataFrame,  config: BacktestConfig, x: str, y: str,
-        p: float, q: float, r: float
+        p: float, q: float, r: float,
+        last_train_date, last_test_date
 ):
     """
     Run a backtest of the pairs trading strategy using a Kalman Filter for hedge ratio estimation.
@@ -43,6 +50,8 @@ def run_backtest(
         p (float): Process noise covariance for the Kalman Filter.
         q (float): Measurement noise covariance for the Kalman Filter.
         r (float): Estimate error covariance for the Kalman Filter.
+        last_train_date: The last date of the training data.
+        last_test_date: The last date of the test data.
     Returns:
         metrics (dict): Performance metrics of the backtest.
         w_pred (list): Predicted hedge ratios over time.
@@ -50,14 +59,14 @@ def run_backtest(
         portfolio_results (pd.DataFrame): Detailed daily portfolio results.
     """
     # Extract config parameters
-    capital = config.initial_capital
-    commission = config.commission
-    z_threshold = config.z_threshold
-    borrow_rate = config.borrow_rate
-    daily_borrow_rate = borrow_rate / 252
-    window = config.window
-    z_close_threshold = config.z_close_threshold
-    invest_frac = config.invest_fraction
+    capital = float(config.initial_capital)
+    commission = float(config.commission)
+    z_threshold = float(config.z_threshold)
+    borrow_rate = float(config.borrow_rate)
+    daily_borrow_rate = borrow_rate / 252.0
+    window = int(config.window)
+    z_close_threshold = float(config.z_close_threshold)
+    invest_frac = float(config.invest_fraction)
 
     # Prepare data
     data = data.copy()
@@ -72,20 +81,18 @@ def run_backtest(
     # Initialize Kalman Filter
     kf = KalmanFilter(w0, p, q, r)
 
-    portfolio_values = []
-    pending_postitions = [] # Signals to be executed next day
-    daily_portfolio_results = []
+    w_preds = []
+    z_scores = []
 
-    n_long_trades = 0
-    n_short_trades = 0
+    portfolio_value = []
+    active_long_positions = []
+    active_short_positions = []
 
-    # Store predicted hedge ratios
-    w_pred = []
-    current_signal = 0
+    closed_long_positions = []
+    closed_short_positions = []
 
-    cash = capital
-    x_shares = 0
-    y_shares = 0
+    signals = []
+    current_plot_signal = 0
 
     # Backtesting loop
     for i in range(window, len(data)):
@@ -100,101 +107,282 @@ def run_backtest(
 
         # Predict hedge ratio using Kalman Filter
         w_t = kf.predict(x_t, y_t)
-        w_pred.append(w_t)
+        w_preds.append(w_t)
         alpha_t, beta_t = w_t[0], w_t[1]
 
         # Calculate z-score of the spread
         actual_spread = y_t - (alpha_t + beta_t * x_t)
         z_score = (actual_spread - mu) / sigma
+        z_scores.append(z_score)
 
-        if np.abs(z_score) <= z_close_threshold:
-            today_signal = 0  # Close positions
-
-        # Open Positions
+        if abs(z_score) <= z_close_threshold:
+            day_signal = 0
         elif z_score > z_threshold:
-            today_signal = -1 # Short spread (y short, x long)
+            day_signal = -1
         elif z_score < -z_threshold:
-            today_signal = 1 # Long spread (y long, x short)
-
-        # If no signal, maintain current position
+            day_signal = 1
         else:
-            today_signal = current_signal
+            day_signal = current_plot_signal  # mantener
+        signals.append(day_signal)
+        current_plot_signal = day_signal
 
-        target_y_shares = y_shares
-        target_x_shares = x_shares
-        if today_signal != current_signal:
-            # Determine budget for the trade
-            current_portfolio_value = y_shares * y_t + x_shares * x_t
-            total_equity = current_portfolio_value + cash
-            budget_for_trade = invest_frac * total_equity
-            budget_per_asset = budget_for_trade / 2
+        for position in active_long_positions.copy():
+            # Check for long position exit
+            if abs(z_score) < z_close_threshold:
+                # If x was longed
+                if position.ticker == x:
+                    # Calculate PnL and update capital
+                    pnl = x_t - position.entry_price
+                    position.is_win = pnl > 0
+                    capital += x_t * position.n_shares* (1 - commission)
+                    # Set exit details
+                    position.exit_date = data.index[i]
+                    position.exit_price = x_t
+                    position.commission_cost += x_t * position.n_shares * commission
+                    # Remove from active and add to closed
+                    closed_long_positions.append(position)
+                # If y was longed
+                elif position.ticker == y:
+                    # Calculate PnL and update capital
+                    pnl = y_t - position.entry_price
+                    position.is_win = pnl > 0
+                    capital += y_t * position.n_shares * (1 - commission)
+                    # Set exit details
+                    position.exit_date = data.index[i]
+                    position.exit_price = y_t
+                    position.commission_cost += y_t * position.n_shares * commission
+                    # Remove from active and add to closed
+                    closed_long_positions.append(position)
+                active_long_positions.remove(position)
 
-            # Calculate number of shares to trade
-            n_y = int(np.floor(budget_per_asset / y_t))
-            n_x = int(np.floor(budget_per_asset / (np.abs(beta_t) * x_t))) # Adjust for hedge ratio
+        # Apply daily borrow cost to active short positions before checking for exits
+        for position in active_short_positions.copy():
+            if position.ticker == x:
+                current_value = position.n_shares * x_t
+                borrow_cost = current_value * daily_borrow_rate
+                # Add borrow cost to total capital and position's borrow cost
+                capital -= borrow_cost
+                position.borrow_cost += borrow_cost
+            elif position.ticker == y:
+                current_value = position.n_shares * y_t
+                borrow_cost = current_value * daily_borrow_rate
+                # Add borrow cost to total capital and position's borrow cost
+                capital -= borrow_cost
+                position.borrow_cost += borrow_cost
 
-            # Rebalance positions based on signal
-            if today_signal == 1:
-                # Long Spread (y long, x short)
-                target_y_shares = n_y
-                target_x_shares = -n_x
-                n_long_trades += 1
-            elif today_signal == -1:
-                # Short Spread (y short, x long)
-                target_y_shares = -n_y
-                target_x_shares = n_x
-                n_short_trades += 1
-            elif today_signal == 0:
-                # Close Positions
-                target_y_shares = 0
-                target_x_shares = 0
+        # Check for short position exit
+        for position in active_short_positions.copy():
+            if abs(z_score) < z_close_threshold:
+                # If x was shorted
+                if position.ticker == x:
+                    # Calculate PnL
+                    pnl = (position.entry_price - x_t) * position.n_shares
+                    position.is_win = pnl > 0
+                    # Apply commission on exit and update capital
+                    exit_commision = (x_t * position.n_shares) * commission
+                    capital += pnl - exit_commision
+                    position.commission_cost += exit_commision
+                    # Set exit details
+                    position.exit_date = data.index[i]
+                    position.exit_price = x_t
+                    # Remove from active and add to closed
+                    closed_short_positions.append(position)
+                # If y was shorted
+                elif position.ticker == y:
+                    # Calculate PnL
+                    pnl = (position.entry_price - y_t) * position.n_shares
+                    position.is_win = pnl > 0
+                    # Apply commission on exit and update capital
+                    exit_commision = (y_t * position.n_shares) * commission
+                    capital += pnl - exit_commision
+                    position.commission_cost += exit_commision
+                    # Set exit details
+                    position.exit_date = data.index[i]
+                    position.exit_price = y_t
+                    # Remove from active and add to closed
+                    closed_short_positions.append(position)
+                active_short_positions.remove(position)
 
-        # Execute trades and update cash
-        delta_y = target_y_shares - y_shares
-        delta_x = target_x_shares - x_shares
 
-        # Calculate transaction costs
-        traded_value = (np.abs(delta_y) * y_t) + (np.abs(delta_x) * x_t)
-        commission_cost = traded_value * commission
+        # Check Long spread if there was a change between yesterday and today
+        if z_scores[-1] < -z_threshold and (len(z_scores) >= 2 and z_scores[-2] >= -z_threshold):
+            # Determine investment using beta_t estimated for today
+            invest_amount_x = (capital * invest_frac) / (1 + abs(beta_t))
+            invest_amount_y = invest_amount_x * abs(beta_t)
 
-        # Update cash after trades and commission
-        cash -= (delta_y * y_t) + (delta_x * x_t) + commission_cost
+            # Calculate number of shares to buy
+            n_shares_x = int(np.floor(invest_amount_x / x_t))
+            n_shares_y = int(np.floor(invest_amount_y / y_t))
 
-        y_shares = int(target_y_shares)
-        x_shares = int(target_x_shares)
+            # Trading costs
+            x_cost = n_shares_x * x_t * commission
+            y_cost = n_shares_y * y_t * (1+commission)
 
-        # Borrowing cost for short positions
-        short_value = abs(min(0, y_shares * y_t)) + abs(min(0, x_shares * x_t))
-        borrow_cost = short_value * daily_borrow_rate
-        cash -= borrow_cost
+            # Check if there is enough capital
+            total_cost = x_cost + y_cost
+            if capital > total_cost and total_cost > 0:
+                capital -= total_cost
+                # Open short position on x
+                short_x_position = Position(
+                    type='short',
+                    ticker=x,
+                    entry_date=data.index[i],
+                    entry_price=x_t,
+                    n_shares=n_shares_x
+                )
+                short_x_position.commission_cost += x_cost
+                active_short_positions.append(short_x_position)
+                # Open long position on y
+                long_y_position = Position(
+                    type='long',
+                    ticker=y,
+                    entry_date=data.index[i],
+                    entry_price=y_t,
+                    n_shares=n_shares_y
+                )
+                long_y_position.commission_cost += (n_shares_y * y_t * commission)
+                active_long_positions.append(long_y_position)
 
-        portfolio_value = y_shares * y_t + x_shares * x_t
-        total_equity = portfolio_value + cash
-        portfolio_values.append(total_equity)
+        # Check Short spread if there was a change between yesterday and today
+        if z_scores[-1] > z_threshold and (len(z_scores) >= 2 and z_scores[-2] <= z_threshold):
+            # Determine investment using beta_t estimated for today
+            invest_amount_x = (capital * invest_frac) / (1 + abs(beta_t))
+            invest_amount_y = invest_amount_x * abs(beta_t)
 
-        # Update signal if was executed
-        current_signal = today_signal
-        today = data.index[i]
+            # Calculate number of shares to buy
+            n_shares_x = int(np.floor(invest_amount_x / x_t))
+            n_shares_y = int(np.floor(invest_amount_y / y_t))
 
-        portfolio_results = {
-            'Date': today,
-            'Alpha': alpha_t,
-            'Beta': beta_t,
-            'Z_Score': z_score,
-            'Signal': current_signal,
-            'Spread': actual_spread,
-            f'{y}_shares': y_shares,
-            f'{x}_shares': x_shares,
-            'Traded_Value': traded_value,
-            'Commission_Cost': commission_cost,
-            'Borrow_Cost': borrow_cost,
-            'Portfolio_Value': portfolio_value,
-            'Total_Equity': total_equity,
-            'Cash': cash
+            # Trading costs
+            x_cost = n_shares_x * x_t * (1+commission)
+            y_cost = n_shares_y * y_t * commission
+
+            # Check if there is enough capital
+            total_cost = x_cost + y_cost
+            if capital > total_cost and total_cost > 0:
+                capital -= total_cost
+                # Open long position on x
+                long_x_position = Position(
+                    type='long',
+                    ticker=x,
+                    entry_date=data.index[i],
+                    entry_price=x_t,
+                    n_shares=n_shares_x
+                )
+                long_x_position.commission_cost += (n_shares_x * x_t * commission)
+                active_long_positions.append(long_x_position)
+                # Open short position on y
+                short_y_position = Position(
+                    type='short',
+                    ticker=y,
+                    entry_date=data.index[i],
+                    entry_price=y_t,
+                    n_shares=n_shares_y
+                )
+                short_y_position.commission_cost += y_cost
+                active_short_positions.append(short_y_position)
+
+        # Record portfolio value at the end of the day
+        current_port_val = get_portfolio_value(
+            capital, active_long_positions, active_short_positions, x, y, x_t, y_t
+        )
+        portfolio_value.append(current_port_val)
+
+    # Calculate the portfolio value at the end of the backtest with all active positions
+    last_price_x = data[x].iloc[-1]
+    last_price_y = data[y].iloc[-1]
+
+    for position in active_long_positions:
+        if position.ticker == x:
+            position.is_win = last_price_x > position.entry_price
+            capital += last_price_x * position.n_shares # No commsion since position isn't actualy closed
+            closed_long_positions.append(position)
+        elif position.ticker == y:
+            position.is_win = last_price_y > position.entry_price
+            capital += last_price_y * position.n_shares # No commsion since position isn't actualy closed
+            closed_long_positions.append(position)
+    active_long_positions = []
+
+    for position in active_short_positions:
+        if position.ticker == x:
+            position.is_win = last_price_x < position.entry_price
+            pnl = (position.entry_price - last_price_x) * position.n_shares
+            capital += pnl + position.entry_price * position.n_shares
+            closed_short_positions.append(position)
+        elif position.ticker == y:
+            position.is_win = last_price_y < position.entry_price
+            pnl = (position.entry_price - last_price_y) * position.n_shares
+            capital += pnl + position.entry_price * position.n_shares
+            closed_short_positions.append(position)
+    active_short_positions = []
+
+    # Separate results for training, testing and validation
+    if last_train_date is not None and last_test_date is not None:
+        portfolio_values = pd.Series(portfolio_value, index=data.index[window:])
+        train_portfolio_values = portfolio_values.loc[portfolio_values.index <= last_train_date]
+        test_portfolio_values = portfolio_values.loc[
+            (portfolio_values.index > last_train_date) &
+            (portfolio_values.index <= last_test_date)
+        ]
+        val_portfolio_values = portfolio_values.loc[portfolio_values.index >= last_test_date]
+
+        capitals = {
+            'Train': train_portfolio_values.iloc[-1],
+            'Test': test_portfolio_values.iloc[-1],
+            'Validation': capital
         }
-        daily_portfolio_results.append(portfolio_results)
 
-    portfolio_results = pd.DataFrame(daily_portfolio_results).set_index('Date')
-    metrics = get_metrics(portfolio_results['Total_Equity'].values)
 
-    return metrics, w_pred, portfolio_values, portfolio_results
+        train_closed_long_positions = filter_positions(closed_long_positions, end=last_train_date)
+        train_closed_short_positions = filter_positions(closed_short_positions, end=last_train_date)
+
+        test_closed_long_positions = filter_positions(closed_long_positions, start=last_train_date, end=last_test_date)
+        test_closed_short_positions = filter_positions(closed_short_positions, start=last_train_date,
+                                                       end=last_test_date)
+
+        val_closed_long_positions = filter_positions(closed_long_positions, start=last_test_date)
+        val_closed_short_positions = filter_positions(closed_short_positions, start=last_test_date)
+
+        metrics = {
+            'Train': get_metrics(
+                train_portfolio_values.tolist(),
+                train_closed_long_positions,
+                train_closed_short_positions
+            ),
+            'Test': get_metrics(
+                test_portfolio_values.tolist(),
+                test_closed_long_positions,
+                test_closed_short_positions
+            ),
+            'Validation': get_metrics(
+                val_portfolio_values.tolist(),
+                val_closed_long_positions,
+                val_closed_short_positions
+            ),
+            'Overall': get_metrics(
+                portfolio_value,
+                closed_long_positions,
+                closed_short_positions
+            )
+        }
+        all_position_returns = get_individual_trade_returns(closed_long_positions + closed_short_positions)
+    else:
+        capitals = {'Final': capital}
+        metrics = get_metrics(portfolio_value, closed_long_positions, closed_short_positions)
+        all_position_returns = get_individual_trade_returns(closed_long_positions + closed_short_positions)
+
+    dates = data.index[window:]
+    signal_series = pd.Series(np.asarray(signals), index=dates, name='Signal')
+    zscore_series = pd.Series(np.asarray(z_scores), index=dates, name='Z_Score')
+
+    all_closed_positions = closed_long_positions + closed_short_positions
+
+    return metrics, w_preds, portfolio_value, signal_series, zscore_series, all_position_returns, capitals, all_closed_positions
+
+
+
+
+
+
+
+

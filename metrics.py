@@ -83,15 +83,27 @@ def get_win_rate(closed_positions: list) -> float:
     return wins / len(closed_positions)
 
 
+def get_total_borrowed_amount(closed_positions: list) -> float:
+    """
+    Calculate the total borrowed amount from closed positions.
+    Args:
+        closed_positions (list): A list of closed Position objects.
+    Returns:
+        float: The total borrowed amount.
+    """
+    total_borrowed_amount = sum(pos.borrow_cost for pos in closed_positions)
+    return total_borrowed_amount
+
+
 def get_metrics(
-        portfolio_value: list, #closed_long_positions: list, closed_short_position: list
+        portfolio_value: list, closed_long_positions: list, closed_short_position: list
 ) -> dict:
     """
     Calculate various performance metrics for the backtest.
     Args:
         portfolio_value (list): A DataFrame containing the portfolio values over time.
-        # closed_long_positions (list): A list of closed long Position objects.
-        # closed_short_position (list): A list of closed short Position objects.
+        closed_long_positions (list): A list of closed long Position objects.
+        closed_short_position (list): A list of closed short Position objects.
     Returns:
         metrics (dict): A dictionary containing various performance metrics.
     """
@@ -104,8 +116,11 @@ def get_metrics(
         'Sortino': get_sortino(df),
         'Maximum Drawdown': get_maximum_drawdown(df),
         'Calmar': get_calmar(df),
-        #'Win rate on long positions': get_win_rate(closed_long_positions),
-        #'Win rate on short positions': get_win_rate(closed_short_position),
-        #'General win rate': get_win_rate(closed_long_positions + closed_short_position)
+        'Number of long trades': len(closed_long_positions),
+        'Number of short trades': len(closed_short_position),
+        'Total borrowed amount': get_total_borrowed_amount(closed_long_positions + closed_short_position),
+        'Win rate on long positions': get_win_rate(closed_long_positions),
+        'Win rate on short positions': get_win_rate(closed_short_position),
+        'General win rate': get_win_rate(closed_long_positions + closed_short_position)
     }
     return metrics

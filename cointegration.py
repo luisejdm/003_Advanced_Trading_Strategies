@@ -108,7 +108,7 @@ def get_best_cointegrated_pair(
     """
     # Get pairs that are cointegrated by sectors
     coint_results = {}
-    print(f'\n{"=" * 50}\n\nSTARTING COINTEGRATION ANALYSIS\n')
+    print(f'\n{"=" * 75}\n\nSTARTING COINTEGRATION ANALYSIS\n')
     for sector_name, tickers in sectors.items():
         print(f'  Analizing {sector_name} sector...')
         pairs = check_pair_correlation_and_cointegration(
@@ -151,7 +151,7 @@ def get_best_pair() -> tuple[tuple, float, str]:
     Returns:
         tuple: The best cointegrated pair, its p-value, and its sector.
     """
-    best_pair = ('INTU', 'MSFT')
-    best_pvalue = 0.000077
-    best_sector = 'Information Technology'
+    best_pair = ('BK', 'SCHW')
+    best_pvalue = 0.000688
+    best_sector = 'Financials'
     return best_pair, best_pvalue, best_sector

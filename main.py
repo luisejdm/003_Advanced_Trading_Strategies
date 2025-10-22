@@ -5,8 +5,8 @@ pd.set_option('display.max_rows', None)
 from utils import train_test_validation, standarize_pair
 from cointegration import get_non_stationary_stocks, get_best_cointegrated_pair, get_best_pair
 from sectors import get_sectors
-from visualization import plot_cointegrated_stocks, plot_all_pairs, plot_portfolio_value, plot_estimations, plot_spread_and_signal
-from prints import print_best_pair, print_metrics
+from visualization import plot_cointegrated_stocks, plot_portfolio_value, plot_estimations, plot_spread_and_signal, plot_trade_returns
+from prints import print_best_pair, print_metrics, print_summary
 from backtest import run_backtest
 from config import BacktestConfig
 
@@ -18,11 +18,15 @@ commission = 0.125 / 100
 borrow_rate = 0.25 / 100
 invest_fraction = 0.8
 window = 252
+
+correlation_threshold = 0.5
+
 z_close_threshold = 0.1
+z_threshold = np.linspace(0.1, 2.75, 20)
 
 p = 0.001
 q = 0.001
-r = 100_000
+r = 100
 
 optimize_metric = 'Sortino'
 
@@ -32,6 +36,8 @@ def main():
     data['Date'] = pd.to_datetime(data['Date'])
     data.set_index('Date', inplace=True)
     train, test, validation = train_test_validation(data, 0.6, 0.2, 0.2)
+    last_train_date = train.index[-1]
+    last_test_date = test.index[-1]
 
     # ---- Cointegration analysis
     if not use_best_pair:
@@ -44,7 +50,7 @@ def main():
 
         # Get the best cointegrated pair by sectors
         coint_results, best_pair, best_pvalue, best_sector = get_best_cointegrated_pair(
-            train, sectors, 0.01, 50, 0.5
+            train, sectors, 0.01, 50, correlation_threshold
         )
         x, y = best_pair[0], best_pair[1]
 
@@ -60,10 +66,8 @@ def main():
 
     print_best_pair(best_pair, best_pvalue, best_sector)
     plot_cointegrated_stocks(standarized_pair)
-    #plot_all_pairs(train, coint_results, estandarize_pair) # Uncomment to plot all found pairs
 
     # ---- Run backtet on train to get optimal z-score threshold
-    z_threshold = np.linspace(0.1, 2.75, 15)
     metrics_list = []
     for z in z_threshold:
         config = BacktestConfig(
@@ -75,14 +79,13 @@ def main():
             window=window,
             z_close_threshold=z_close_threshold
         )
-        metrics, w_pred, porfolio_values, portfolio_results = run_backtest(
-            train, config, x, y, p, q, r
+        metrics, _, _, _, _, _, _, _ = run_backtest(
+            train, config, x, y, p, q, r, None, None
         )
         metrics_list.append((z, metrics[optimize_metric]))
     metrics_df = pd.DataFrame(metrics_list, columns=['Z_score', optimize_metric])
     optimal_z = metrics_df.loc[metrics_df[optimize_metric].idxmax(), 'Z_score']
-    print(metrics_df)
-    print(f'\nOptimal Z-Score Threshold on Train Set: {optimal_z:.4f}\n')
+    print(f'\n{'=' * 75}\n Optimal Z-Score Threshold on Train Set: {optimal_z:.4f}\n')
 
     # ---- Run Backtest on Test + Validation with optimal z-score
     config = BacktestConfig(
@@ -96,15 +99,31 @@ def main():
     )
 
     # ---- Run backtest
-    metrics, w_pred, porfolio_values, portfolio_results = run_backtest(
-        data, config, x, y, p, q, r
+    metrics, w_pred, porfolio_values, signal, zscore, returns, capitals, all_closed_positions = run_backtest(
+        data, config, x, y, p, q, r, last_train_date, last_test_date
     )
 
     # ---- Print metrics and plot results
-    print_metrics(metrics, optimal_z)
+    for period, metric in metrics.items():
+        print_metrics(metric, optimal_z, period)
+    print_summary(initial_capital, capitals, all_closed_positions)
     plot_estimations(data.index[window:], w_pred)
-    plot_portfolio_value(data.index[window:], porfolio_values, portfolio_results['Signal'])
-    plot_spread_and_signal(data.index[window:], portfolio_results['Z_Score'], portfolio_results['Signal'], optimal_z)
+    plot_portfolio_value(
+        data.index[window:],
+        porfolio_values,
+        signal,
+        last_train_date,
+        last_test_date
+    )
+    plot_spread_and_signal(
+        data.index[window:],
+        zscore,
+        signal,
+        optimal_z,
+        last_train_date,
+        last_test_date
+    )
+    plot_trade_returns(returns)
 
 
 if __name__ == '__main__':
