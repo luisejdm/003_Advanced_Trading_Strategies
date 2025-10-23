@@ -19,7 +19,7 @@ borrow_rate = 0.25 / 100
 invest_fraction = 0.8
 window = 252
 
-correlation_threshold = 0.7
+correlation_threshold = 0.5
 
 z_close_threshold = 0.1 # Acceptable distance to close the position
 z_threshold = np.linspace(0.1, 2.75, 20)
@@ -85,7 +85,7 @@ def main():
         metrics_list.append((z, metrics[optimize_metric]))
     metrics_df = pd.DataFrame(metrics_list, columns=['Z_score', optimize_metric])
     optimal_z = metrics_df.loc[metrics_df[optimize_metric].idxmax(), 'Z_score']
-    print(f'\n{'=' * 75}\n Optimal Z-Score Threshold on Train Set: {optimal_z:.4f}\n')
+    print(f'\n{'=' * 75}\n\nOptimal Z-Score Threshold on Train Set: {optimal_z:.4f}\n')
 
     # ---- Run Backtest on Test + Validation with optimal z-score
     config = BacktestConfig(

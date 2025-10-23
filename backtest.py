@@ -329,7 +329,7 @@ def run_backtest(
         capitals = {
             'Train': train_portfolio_values.iloc[-1],
             'Test': test_portfolio_values.iloc[-1],
-            'Validation': capital
+            'Validation': val_portfolio_values.iloc[-1],
         }
 
 
