@@ -36,7 +36,7 @@ This project implements:
 ---
 
 ## Requirements
-- Python 3.8+
+
 - Recommended Python packages:
   - numpy
   - pandas
@@ -44,13 +44,9 @@ This project implements:
   - seaborn
   - statsmodels (for cointegration tests)
   - scipy
-  - (optional) tqdm
 
 Install packages with pip when necessary, e.g.:
-```bash
-pip install numpy pandas matplotlib seaborn statsmodels scipy
-```
-If a `requirements.txt` is added to the repo you can install with:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -76,8 +72,7 @@ source .venv/bin/activate
 
 3. Install required packages (see Requirements section).
 
-4. Place your historical price data in the `data/` directory (create it if it doesn't exist) or provide a path to your DataFrame when adapting the code.
-
+4. Place your historical price data in `main.py`
 ---
 
 ## Data requirements & format
@@ -90,20 +85,22 @@ The code expects a pandas DataFrame (or CSV that can be loaded to a DataFrame) w
 
 Example CSV structure (first row is a header with ticker names):
 
-date, AAPL, MSFT, GOOG
-2020-01-02, 300.35, 157.70, 1352.83
-2020-01-03, 297.43, 155.75, 1367.37
+| date       |   AAPL |   MSFT |    GOOG |
+|:-----------|-------:|-------:|--------:|
+| 2020-01-02 | 300.35 | 157.70 | 1352.83 |
+| 2020-01-03 | 297.43 | 155.75 | 1367.37 |
+
 ...
 
-Load example:
+Load example in `main.py`:
+
 ```python
 import pandas as pd
-data = pd.read_csv("data/prices.csv", parse_dates=["date"], index_col="date")
+data = pd.read_csv("prices.csv", parse_dates=["date"], index_col="date")
 ```
 
 Notes:
-- Missing values: the code uses standard pandas operations. It's advisable to forward/backward fill or drop rows with NaNs for the selected pair before backtesting.
-- The cointegration routines expect enough historical data (multi-year daily series is typical). The backtest defaults to a 252-day rolling window.
+- The code expects to recieve data with no NaNs values.
 
 ---
 
