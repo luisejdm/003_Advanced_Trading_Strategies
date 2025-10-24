@@ -54,9 +54,9 @@ def get_portfolio_value(
     # For long positions
     for position in long_positions:
         if position.ticker == x:
-            value += current_x_price * position.n_shares
+            value += current_x_price * position.n_shares # No commission since position isn't actualy closed
         elif position.ticker == y:
-            value += current_y_price * position.n_shares
+            value += current_y_price * position.n_shares # No commission since position isn't actualy closed
 
     # For short positions
     for position in short_positions:

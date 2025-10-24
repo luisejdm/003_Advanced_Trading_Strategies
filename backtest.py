@@ -122,7 +122,7 @@ def run_backtest(
         elif z_score < -z_threshold:
             day_signal = 1
         else:
-            day_signal = current_plot_signal  # mantener
+            day_signal = current_plot_signal  # No change
         signals.append(day_signal)
         current_plot_signal = day_signal
 
@@ -131,11 +131,9 @@ def run_backtest(
             if abs(z_score) < z_close_threshold:
                 # If x was longed
                 if position.ticker == x:
-                    # Calculate PnL and update capital
                     pnl = x_t - position.entry_price
                     position.is_win = pnl > 0
                     capital += x_t * position.n_shares* (1 - commission)
-                    # Set exit details
                     position.exit_date = data.index[i]
                     position.exit_price = x_t
                     position.commission_cost += x_t * position.n_shares * commission
@@ -143,11 +141,9 @@ def run_backtest(
                     closed_long_positions.append(position)
                 # If y was longed
                 elif position.ticker == y:
-                    # Calculate PnL and update capital
                     pnl = y_t - position.entry_price
                     position.is_win = pnl > 0
                     capital += y_t * position.n_shares * (1 - commission)
-                    # Set exit details
                     position.exit_date = data.index[i]
                     position.exit_price = y_t
                     position.commission_cost += y_t * position.n_shares * commission
@@ -160,13 +156,11 @@ def run_backtest(
             if position.ticker == x:
                 current_value = position.n_shares * x_t
                 borrow_cost = current_value * daily_borrow_rate
-                # Add borrow cost to total capital and position's borrow cost
                 capital -= borrow_cost
                 position.borrow_cost += borrow_cost
             elif position.ticker == y:
                 current_value = position.n_shares * y_t
                 borrow_cost = current_value * daily_borrow_rate
-                # Add borrow cost to total capital and position's borrow cost
                 capital -= borrow_cost
                 position.borrow_cost += borrow_cost
 
@@ -175,28 +169,22 @@ def run_backtest(
             if abs(z_score) < z_close_threshold:
                 # If x was shorted
                 if position.ticker == x:
-                    # Calculate PnL
                     pnl = (position.entry_price - x_t) * position.n_shares
                     position.is_win = pnl > 0
-                    # Apply commission on exit and update capital
                     exit_commision = (x_t * position.n_shares) * commission
                     capital += pnl - exit_commision
                     position.commission_cost += exit_commision
-                    # Set exit details
                     position.exit_date = data.index[i]
                     position.exit_price = x_t
                     # Remove from active and add to closed
                     closed_short_positions.append(position)
                 # If y was shorted
                 elif position.ticker == y:
-                    # Calculate PnL
                     pnl = (position.entry_price - y_t) * position.n_shares
                     position.is_win = pnl > 0
-                    # Apply commission on exit and update capital
                     exit_commision = (y_t * position.n_shares) * commission
                     capital += pnl - exit_commision
                     position.commission_cost += exit_commision
-                    # Set exit details
                     position.exit_date = data.index[i]
                     position.exit_price = y_t
                     # Remove from active and add to closed
@@ -209,18 +197,16 @@ def run_backtest(
             # Determine investment using beta_t estimated for today
             invest_amount_x = (capital * invest_frac) / (1 + abs(beta_t))
             invest_amount_y = invest_amount_x * abs(beta_t)
-
-            # Calculate number of shares to buy
             n_shares_x = int(np.floor(invest_amount_x / x_t))
             n_shares_y = int(np.floor(invest_amount_y / y_t))
 
             # Trading costs
             x_cost = n_shares_x * x_t * commission
             y_cost = n_shares_y * y_t * (1+commission)
+            total_cost = x_cost + y_cost
 
             # Check if there is enough capital
-            total_cost = x_cost + y_cost
-            if capital > total_cost and total_cost > 0:
+            if capital > total_cost > 0:
                 capital -= total_cost
                 # Open short position on x
                 short_x_position = Position(
@@ -248,18 +234,16 @@ def run_backtest(
             # Determine investment using beta_t estimated for today
             invest_amount_x = (capital * invest_frac) / (1 + abs(beta_t))
             invest_amount_y = invest_amount_x * abs(beta_t)
-
-            # Calculate number of shares to buy
             n_shares_x = int(np.floor(invest_amount_x / x_t))
             n_shares_y = int(np.floor(invest_amount_y / y_t))
 
             # Trading costs
             x_cost = n_shares_x * x_t * (1+commission)
             y_cost = n_shares_y * y_t * commission
+            total_cost = x_cost + y_cost
 
             # Check if there is enough capital
-            total_cost = x_cost + y_cost
-            if capital > total_cost and total_cost > 0:
+            if capital > total_cost > 0:
                 capital -= total_cost
                 # Open long position on x
                 long_x_position = Position(
@@ -333,15 +317,20 @@ def run_backtest(
         }
 
 
-        train_closed_long_positions = filter_positions(closed_long_positions, end=last_train_date)
-        train_closed_short_positions = filter_positions(closed_short_positions, end=last_train_date)
-
-        test_closed_long_positions = filter_positions(closed_long_positions, start=last_train_date, end=last_test_date)
-        test_closed_short_positions = filter_positions(closed_short_positions, start=last_train_date,
+        train_closed_long_positions = filter_positions(closed_long_positions,
+                                                       end=last_train_date)
+        train_closed_short_positions = filter_positions(closed_short_positions,
+                                                        end=last_train_date)
+        test_closed_long_positions = filter_positions(closed_long_positions,
+                                                      start=last_train_date,
+                                                      end=last_test_date)
+        test_closed_short_positions = filter_positions(closed_short_positions,
+                                                       start=last_train_date,
                                                        end=last_test_date)
-
-        val_closed_long_positions = filter_positions(closed_long_positions, start=last_test_date)
-        val_closed_short_positions = filter_positions(closed_short_positions, start=last_test_date)
+        val_closed_long_positions = filter_positions(closed_long_positions,
+                                                     start=last_test_date)
+        val_closed_short_positions = filter_positions(closed_short_positions,
+                                                      start=last_test_date)
 
         metrics = {
             'Train': get_metrics(
@@ -378,11 +367,3 @@ def run_backtest(
     all_closed_positions = closed_long_positions + closed_short_positions
 
     return metrics, w_preds, portfolio_value, signal_series, zscore_series, all_position_returns, capitals, all_closed_positions
-
-
-
-
-
-
-
-

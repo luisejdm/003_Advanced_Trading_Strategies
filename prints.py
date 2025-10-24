@@ -37,7 +37,6 @@ def print_summary(intial_capital: int, capitals: dict, positions: list) -> None:
         intial_capital (int): The initial capital used in the backtest.
         capitals (dict): A dictionary containing final capitals for different datasets.
         positions (list): A list of all closed Position objects.
-        total_days (int): Total number of days in the backtest.
     """
     print('\n' + '=' * 75)
     print('\nBacktest Summary:')
