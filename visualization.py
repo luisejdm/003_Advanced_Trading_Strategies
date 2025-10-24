@@ -35,8 +35,11 @@ def plot_cointegrated_stocks(data: pd.DataFrame)-> None:
 
 def plot_all_pairs(train: pd.DataFrame, coint_results: dict, estandarize_fn) -> None:
     """
-    Recorre todos los pares cointegrados {sector: [(t1,t2,p)]},
-    estandariza cada par con estandarize_fn y los grafica.
+    Plot all cointegrated stock pairs by sector.
+    Args:
+        train (pd.DataFrame): Training data containing stock prices.
+        coint_results (dict): Dictionary with sector names as keys and lists of cointegrated pairs as values.
+        estandarize_fn (function): Function to estandarize stock prices for plotting.
     """
     for sector_name, pairs in coint_results.items():
         for (t1, t2, pvalue) in pairs:
@@ -85,17 +88,17 @@ def plot_estimations(index: pd.Index, w_pred: list, ) -> None:
 
 
 def plot_portfolio_value(
-        dates: pd.Index, portfolio_values: list, signals: np.ndarray,
-        last_train_date, last_test_date
+        dates: pd.Index, portfolio_values: list, signals: pd.Series,
+        last_train_date: pd.Timestamp, last_test_date: pd.Timestamp
 ) -> None:
     """
     Plot the portfolio value over time.
     Args:
         dates (pd.Index): Index of dates.
         portfolio_values (list): List of portfolio values corresponding to the dates.
-        signals (np.ndarray): Array of trading signals corresponding to the dates.
-        last_train_date: Last date of the training set.
-        last_test_date: Last date of the test set.
+        signals (pd.Series): Array of trading signals corresponding to the dates.
+        last_train_date (pd.Timestamp): Last date of the training set.
+        last_test_date (pd.Timestamp): Last date of the test set.
     """
     # Create Series for easier indexing
     idx = pd.Index(dates)
@@ -143,15 +146,15 @@ def plot_portfolio_value(
 
 
 def plot_spread_and_signal(
-        dates: pd.Index, spread: np.ndarray, signals: np.ndarray, z_threshold: float,
+        dates: pd.Index, spread: pd.Series, signals: pd.Series, z_threshold: float,
         last_train_date=None, last_test_date=None
 ) -> None:
     """
     Plot the spread and trading signals over time in subplots.
     Args:
         dates (pd.Index): Index of dates.
-        spread (np.ndarray): Array of spread values corresponding to the dates.
-        signals (np.ndarray): Array of trading signals corresponding to the dates.
+        spread (pd.Series): Array of spread values corresponding to the dates.
+        signals (pd.Series): Array of trading signals corresponding to the dates.
         z_threshold (np.ndarray): Array of z-threshold values for reference.
         last_train_date: Last date of the training set.
         last_test_date: Last date of the test set.
@@ -231,5 +234,38 @@ def plot_trade_returns(returns: list) -> None:
     plt.ylabel('Frequency')
     plt.legend()
     plt.axvline(x=0, color='k', linestyle='--')
+    plt.grid()
+    plt.show()
+
+
+def plot_spread_over_time(
+        dates: pd.Index, spread: list,
+        last_train_date: pd.Timestamp, last_test_date: pd.Timestamp
+) -> None:
+    """
+    Plot the spread over time.
+    Args:
+        dates (pd.Index): Index of dates.
+        spread (list): Array of spread values corresponding to the dates.
+        last_train_date (pd.Timestamp): Last date of the training set.
+        last_test_date (pd.Timestamp): Last date of the test set.
+    """
+    idx = pd.Index(dates)
+    spd = pd.Series(spread, index=idx)
+
+    train = idx <= last_train_date
+    test = (idx > last_train_date) & (idx <= last_test_date)
+    val = idx > last_test_date
+
+    plt.figure()
+    plt.plot(spd.index[train], spd[train], label='Train', linewidth=1.8, color='#1C478B')
+    plt.plot(spd.index[test], spd[test], label='Test', linewidth=1.8, color='cadetblue')
+    plt.plot(spd.index[val], spd[val], label='Validation', linewidth=1.8, color='dodgerblue')
+    plt.axvline(last_train_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+    plt.axvline(last_test_date, color='k', linestyle='--', linewidth=1, alpha=0.8)
+    plt.title('Spread Over Time')
+    plt.xlabel('Date')
+    plt.ylabel('Spread')
+    plt.legend()
     plt.grid()
     plt.show()

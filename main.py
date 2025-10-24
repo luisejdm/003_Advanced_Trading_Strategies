@@ -1,11 +1,10 @@
-import numpy as np
 import pandas as pd
 pd.set_option('display.max_rows', None)
 
 from utils import train_test_validation, standarize_pair
 from cointegration import get_non_stationary_stocks, get_best_cointegrated_pair, get_best_pair
 from sectors import get_sectors
-from visualization import plot_cointegrated_stocks, plot_portfolio_value, plot_estimations, plot_spread_and_signal, plot_trade_returns
+from visualization import *
 from prints import print_best_pair, print_metrics, print_summary
 from backtest import run_backtest
 from config import BacktestConfig
@@ -79,13 +78,13 @@ def main():
             window=window,
             z_close_threshold=z_close_threshold
         )
-        metrics, _, _, _, _, _, _, _ = run_backtest(
+        metrics, _, _, _, _, _, _, _, _ = run_backtest(
             train, config, x, y, p, q, r, None, None
         )
         metrics_list.append((z, metrics[optimize_metric]))
     metrics_df = pd.DataFrame(metrics_list, columns=['Z_score', optimize_metric])
     optimal_z = metrics_df.loc[metrics_df[optimize_metric].idxmax(), 'Z_score']
-    print(f'\n{'=' * 75}\n\nOptimal Z-Score Threshold on Train Set: {optimal_z:.4f}\n')
+    print(f'\n{'=' * 75}\n\nOptimal Z-Score Threshold on Train Set: {optimal_z:.4f}')
 
     # ---- Run Backtest on Test + Validation with optimal z-score
     config = BacktestConfig(
@@ -99,18 +98,22 @@ def main():
     )
 
     # ---- Run backtest
-    metrics, w_pred, porfolio_values, signal, zscore, returns, capitals, all_closed_positions = run_backtest(
+    metrics, portfolio_values, w_pred, spreads, signal, zscore, capitals, all_closed_positions, returns = run_backtest(
         data, config, x, y, p, q, r, last_train_date, last_test_date
     )
 
     # ---- Print metrics and plot results
     for period, metric in metrics.items():
-        print_metrics(metric, optimal_z, period)
+        print_metrics(metric, period)
+    plot_spread_over_time(
+        data.index[window:], spreads,
+        last_train_date, last_test_date
+    )
     print_summary(initial_capital, capitals, all_closed_positions)
     plot_estimations(data.index[window:], w_pred)
     plot_portfolio_value(
         data.index[window:],
-        porfolio_values,
+        portfolio_values,
         signal,
         last_train_date,
         last_test_date

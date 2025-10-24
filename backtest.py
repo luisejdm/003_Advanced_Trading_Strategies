@@ -39,7 +39,7 @@ def run_backtest(
         data: pd.DataFrame,  config: BacktestConfig, x: str, y: str,
         p: float, q: float, r: float,
         last_train_date, last_test_date
-):
+) -> tuple[dict, list, list, list, pd.Series, pd.Series, dict, list, list]:
     """
     Run a backtest of the pairs trading strategy using a Kalman Filter for hedge ratio estimation.
     Args:
@@ -53,10 +53,16 @@ def run_backtest(
         last_train_date: The last date of the training data.
         last_test_date: The last date of the test data.
     Returns:
-        metrics (dict): Performance metrics of the backtest.
-        w_pred (list): Predicted hedge ratios over time.
-        portfolio_values (list): Portfolio values over time.
-        portfolio_results (pd.DataFrame): Detailed daily portfolio results.
+        tuple: A tuple containing:
+            - metrics (dict): Performance metrics of the backtest.
+            - portfolio_value (list): Daily portfolio values.
+            - w_preds (list): Predicted hedge ratios.
+            - spreads (list): Daily spreads.
+            - signal_series (pd.Series): Trading signals over time.
+            - zscore_series (pd.Series): Z-scores of the spread over time.
+            - capitals (dict): Final capitals for different datasets.
+            - all_closed_positions (list): All closed Position objects.
+            - all_position_returns (list): Returns of individual trades.
     """
     # Extract config parameters
     capital = float(config.initial_capital)
@@ -82,6 +88,7 @@ def run_backtest(
     kf = KalmanFilter(w0, p, q, r)
 
     w_preds = []
+    spreads = []
     z_scores = []
 
     portfolio_value = []
@@ -112,6 +119,7 @@ def run_backtest(
 
         # Calculate z-score of the spread
         actual_spread = y_t - (alpha_t + beta_t * x_t)
+        spreads.append(actual_spread)
         z_score = (actual_spread - mu) / sigma
         z_scores.append(z_score)
 
@@ -366,4 +374,5 @@ def run_backtest(
 
     all_closed_positions = closed_long_positions + closed_short_positions
 
-    return metrics, w_preds, portfolio_value, signal_series, zscore_series, all_position_returns, capitals, all_closed_positions
+    return (metrics, portfolio_value, w_preds, spreads , signal_series,
+            zscore_series, capitals, all_closed_positions, all_position_returns)
