@@ -151,7 +151,7 @@ def get_best_pair() -> tuple[tuple, float, str]:
     Returns:
         tuple: The best cointegrated pair, its p-value, and its sector.
     """
-    best_pair = ('BK', 'SCHW')
-    best_pvalue = 0.000688
-    best_sector = 'Financials'
+    best_pair = ('MSFT', 'INTU')
+    best_pvalue = 0.000077
+    best_sector = 'Information Technology'
     return best_pair, best_pvalue, best_sector
