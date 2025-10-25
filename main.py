@@ -5,7 +5,7 @@ from utils import train_test_validation, standarize_pair
 from cointegration import get_non_stationary_stocks, get_best_cointegrated_pair, get_best_pair
 from sectors import get_sectors
 from visualization import *
-from prints import print_best_pair, print_metrics, print_summary
+from prints import print_best_pair, print_metrics, print_summary, print_zscore_optimization
 from backtest import run_backtest
 from config import BacktestConfig
 
@@ -83,6 +83,7 @@ def main():
         )
         metrics_list.append((z, metrics[optimize_metric]))
     metrics_df = pd.DataFrame(metrics_list, columns=['Z_score', optimize_metric])
+    print_zscore_optimization(metrics_df)
     optimal_z = metrics_df.loc[metrics_df[optimize_metric].idxmax(), 'Z_score']
     print(f'\n{'=' * 75}\n\nOptimal Z-Score Threshold on Train Set: {optimal_z:.4f}')
 

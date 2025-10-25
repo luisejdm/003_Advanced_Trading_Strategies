@@ -1,3 +1,5 @@
+import pandas as pd
+
 def print_best_pair(best_pair: tuple, best_pvalue: float, sector: str) -> None:
     """
     Print the best cointegrated pair and its p-value.
@@ -13,6 +15,17 @@ def print_best_pair(best_pair: tuple, best_pvalue: float, sector: str) -> None:
         f'\nSector: {sector}'
     )
 
+def print_zscore_optimization(metrics_df: pd.DataFrame) -> None:
+    """
+    Print the z-score optimization results and return the optimal z-score.
+    Args:
+        metrics_df (pd.DataFrame): DataFrame containing z-scores and their corresponding metrics.
+    Returns:
+        float: The optimal z-score.
+    """
+    print(f'\n{"=" * 75}\n')
+    print(f'Optimization of Z-Score Threshold on Train Set\n')
+    print(metrics_df.to_string(index=False))
 
 def print_metrics(metrics: dict, period: str) -> None:
     """
