@@ -179,6 +179,14 @@ def plot_spread_and_signal(
     ax1.plot(spd.index[test], spd[test], label='Test', linewidth=1.5, color='cadetblue')
     ax1.plot(spd.index[val], spd[val], label='Validation', linewidth=1.5, color='dodgerblue')
 
+    # Add a green marker when a long position is taken and a red marker for short positions
+    long_mask = sig == 1
+    short_mask = sig == -1
+    ax1.fill_between(spd.index, spd.min(), spd.max(), where=long_mask,
+                     color='green', alpha=0.1, label='Long Position Period')
+    ax1.fill_between(spd.index, spd.min(), spd.max(), where=short_mask,
+                     color='firebrick', alpha=0.1, label='Short Position Period')
+
     ax1.axhline(y=z_threshold, color='firebrick', linestyle='--', linewidth=2.5, label='Z-Score Thresholds')
     ax1.axhline(y=-z_threshold, color='firebrick', linestyle='--', linewidth=2.5)
 

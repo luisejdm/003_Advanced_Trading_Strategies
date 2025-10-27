@@ -139,20 +139,20 @@ def get_profit_factor(positions: list) -> float:
     Returns:
         float: Profit factor value.
     """
-    gross_profit = sum(
+    profit = sum(
         max((pos.exit_price - pos.entry_price) * pos.n_shares, 0)
         if pos.type == 'long'
         else max((pos.entry_price - pos.exit_price) * pos.n_shares, 0)
         for pos in positions if pos.exit_price is not None
     )
-    gross_loss = sum(
+    loss = sum(
         abs(min((pos.exit_price - pos.entry_price) * pos.n_shares, 0))
         if pos.type == 'long'
         else abs(min((pos.entry_price - pos.exit_price) * pos.n_shares, 0))
         for pos in positions if pos.exit_price is not None
     )
 
-    return gross_profit / gross_loss if gross_loss > 0 else np.nan
+    return profit / loss if loss > 0 else np.nan
 
 
 def get_metrics(

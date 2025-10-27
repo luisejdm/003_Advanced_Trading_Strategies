@@ -36,7 +36,7 @@ def print_metrics(metrics: dict, period: str) -> None:
     """
 
     print(f'\n{'='*70}\n')
-    print(f'Performance Metrics for {period} Period\n')
+    print(f'Performance Metrics and trading statistics for {period} Period\n')
 
     print(f'{'Sharpe Ratio':<45}: {metrics.get('Sharpe', 0):>15.4f}')
     print(f'{'Sortino Ratio':<45}: {metrics.get('Sortino', 0):>15.4f}')
