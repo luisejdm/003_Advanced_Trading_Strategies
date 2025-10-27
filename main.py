@@ -10,7 +10,7 @@ from backtest import run_backtest
 from config import BacktestConfig
 
 
-use_best_pair = False
+use_best_pair = True
 
 initial_capital = 1_000_000
 commission = 0.125 / 100
